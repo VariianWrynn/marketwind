@@ -10,8 +10,8 @@ from marketwind.storage.migrate import apply_migrations
 @pytest.fixture
 async def conn():
     c = await asyncpg.connect(settings.database_url)
-    await apply_migrations(c)
     try:
+        await apply_migrations(c)
         yield c
     finally:
         await c.close()

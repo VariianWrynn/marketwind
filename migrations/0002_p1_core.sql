@@ -31,6 +31,9 @@ create table if not exists quotes (
 
 create index if not exists quotes_source_id_idx on quotes (source_id);
 
+-- uuid[] arrays (claims.quote_ids, sentences.claim_ids/source_ids) hold FK-like
+-- ids; postgres has no array FKs, so referential integrity is enforced at the
+-- app layer.
 create table if not exists claims (
     claim_id uuid primary key default gen_random_uuid(),
     statement text not null,
