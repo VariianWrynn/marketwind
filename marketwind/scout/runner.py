@@ -18,7 +18,9 @@ def evaluate_floor(sources: list[Source]) -> FloorResult:
     primary = sum(
         1 for s in sources for q in s.quotes if q.attached_primary_url
     )
-    outlets = len({s.domain for s in sources})
+    # Only sources that actually contributed a grounded quote count as an
+    # independent outlet — an empty/failed fetch is not corroboration.
+    outlets = len({s.domain for s in sources if s.quotes})
     passed = (
         grounded >= MIN_GROUNDED_QUOTES
         and primary >= MIN_PRIMARY_QUOTES

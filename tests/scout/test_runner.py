@@ -56,3 +56,15 @@ def test_floor_fails_when_no_primary_even_if_counts_ok():
     assert floor.independent_outlets == 2
     assert floor.primary_traced_quotes == 0
     assert floor.passed is False  # conjunctive: zero primary fails the whole gate
+
+
+def test_empty_source_does_not_inflate_outlet_count():
+    # A fetched-but-empty source (0 quotes) is not a corroborating outlet.
+    sources = [
+        _src("https://m.cls.cn/a/1", "m.cls.cn", 5, primary_url="https://cninfo.com.cn/x"),
+        _src("https://finance.sina.com.cn/y", "finance.sina.com.cn", 0),
+    ]
+    floor = evaluate_floor(sources)
+    assert floor.grounded_quotes == 5
+    assert floor.independent_outlets == 1, "empty source must not count as an outlet"
+    assert floor.passed is False  # only one real outlet, under the floor

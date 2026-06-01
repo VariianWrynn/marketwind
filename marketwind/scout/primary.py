@@ -29,4 +29,5 @@ async def trace_to_primary(claim_type: str, company: str, on_date) -> str | None
     df = ak.stock_notice_report(symbol=company)  # company announcements
     if df is None or df.empty:
         return None
-    return str(df.iloc[0].get("url")) or None
+    url = df.iloc[0].get("url")
+    return str(url) if url else None  # avoid str(None) == "None" (truthy)
