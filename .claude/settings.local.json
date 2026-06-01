@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd D:/AgentDaily && mkdir -p marketwind/storage marketwind/mcp_tools marketwind/orchestration marketwind/scheduling marketwind/gateway migrations tests/grounded_gen tests/verifier tests/timeawareness tests/synthesizer tests/prompt_regression tests/citation_ground_truth && echo \"dirs created\")",
+      "Bash(grep -iA3 \"registry mirror\")",
+      "Bash(timeout 40 docker pull docker.m.daocloud.io/library/postgres:16-alpine)",
+      "Bash(docker tag *)",
+      "Bash(timeout 120 docker pull docker.m.daocloud.io/library/python:3.11-slim)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" localhost:8000/health)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" localhost:8000/health)",
+      "Bash(curl -s localhost:8000/health)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(.venv/Scripts/pytest.exe tests/ -q)",
+      "Bash(DATABASE_URL=\"postgresql://marketwind:marketwind@localhost:5432/marketwind\" REDIS_URL=\"redis://localhost:6379/0\" .venv/Scripts/pytest.exe tests/ -q)",
+      "Bash(set -e)",
+      "Bash(mkdir -p citation docs .claude/skills/citation-builder)",
+      "Bash(mv SKILL.md .claude/skills/citation-builder/)",
+      "Bash(git init *)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}
