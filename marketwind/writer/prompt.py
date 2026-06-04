@@ -45,16 +45,43 @@ Rules:
   be source ids from the pool. The brief should be ~500 Chinese characters."""
 
 
-def _serialize_pool(pool: list[PooledSource]) -> str:
-    rows = []
-    for s in pool:
+def alias_pool(
+    pool: list[PooledSource],
+) -> tuple[list[dict], dict[str, str], dict[str, str]]:
+    """Serialize the pool with short aliases.
+
+    Returns (rows, q_alias_to_uuid, s_alias_to_uuid).
+    Sources get s1, s2, … in pool order; quotes get q1, q2, … as a global
+    counter across the whole pool in (source, then quote) order.
+    Each row carries alias strings for source_id and quote_id; all other fields
+    are the original values (domain, is_primary, text, is_quantitative,
+    has_primary_trace).
+    """
+    rows: list[dict] = []
+    q_alias_to_uuid: dict[str, str] = {}
+    s_alias_to_uuid: dict[str, str] = {}
+    q_counter = 0
+    for s_idx, s in enumerate(pool):
+        s_alias = f"s{s_idx + 1}"
+        s_alias_to_uuid[s_alias] = s.source_id
         for q in s.quotes:
+            q_counter += 1
+            q_alias = f"q{q_counter}"
+            q_alias_to_uuid[q_alias] = q.quote_id
             rows.append({
-                "source_id": s.source_id, "domain": s.domain, "is_primary": s.is_primary,
-                "quote_id": q.quote_id, "text": q.text,
+                "source_id": s_alias,
+                "domain": s.domain,
+                "is_primary": s.is_primary,
+                "quote_id": q_alias,
+                "text": q.text,
                 "is_quantitative": q.is_quantitative,
                 "has_primary_trace": q.attached_primary_url is not None,
             })
+    return rows, q_alias_to_uuid, s_alias_to_uuid
+
+
+def _serialize_pool(pool: list[PooledSource]) -> str:
+    rows, _, _ = alias_pool(pool)
     return json.dumps(rows, ensure_ascii=False, indent=2)
 
 

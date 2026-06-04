@@ -91,13 +91,13 @@ async def test_run_writer_end_to_end_with_stub(conn, fixtures_dir_writer):
     await conn.execute("delete from sentences;")
     await upsert_source(conn, _sample_source())
     pool = await load_pool(conn)
-    # Build a stub returning output referencing THIS pool's real ids.
-    sid = pool[0].source_id
-    qid = pool[0].quotes[0].quote_id
+    # The sample source has 2 quotes; aliases are q1, q2 for source s1.
+    # Stub returns alias ids — assemble maps them back to real uuids.
+    sid = pool[0].source_id  # real uuid (for asserting DB write)
     content = json.dumps({
-        "claims": [{"id": "c-001", "statement": "句子一陈述", "quote_ids": [qid]}],
+        "claims": [{"id": "c-001", "statement": "句子一陈述", "quote_ids": ["q1"]}],
         "sentences": [{"sentence": "句子一。", "claim_ids": ["c-001"],
-                       "source_ids": [sid], "sentence_type": "factual"}],
+                       "source_ids": ["s1"], "sentence_type": "factual"}],
     })
 
     async def stub_call(messages):
@@ -109,3 +109,8 @@ async def test_run_writer_end_to_end_with_stub(conn, fixtures_dir_writer):
         "select count(*) from sentences where report_id=$1;", report_id
     )
     assert n_sent == 1
+    # persisted sentence carries real source uuid (mapped back by assemble)
+    row = await conn.fetchrow(
+        "select source_ids from sentences where report_id=$1;", report_id
+    )
+    assert str(row["source_ids"][0]) == sid
