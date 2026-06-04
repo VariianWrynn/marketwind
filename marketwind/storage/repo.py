@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncpg
 
 from marketwind.scout.domain import Source
+from marketwind.writer.domain import PooledQuote, PooledSource
 
 
 async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
@@ -42,3 +43,39 @@ async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
                 q.is_quantitative, q.attached_primary_url,
             )
         return str(source_id)
+
+
+async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
+    """Load the persisted quote pool with real DB UUIDs (Writer input)."""
+    src_rows = await conn.fetch(
+        "select source_id, url, domain, is_primary from sources order by ingested_at;"
+    )
+    pool: list[PooledSource] = []
+    for s in src_rows:
+        q_rows = await conn.fetch(
+            """
+            select quote_id, text, is_quantitative, quote_type, attached_primary_url
+            from quotes where source_id = $1 order by span_start;
+            """,
+            s["source_id"],
+        )
+        quotes = [
+            PooledQuote(
+                quote_id=str(q["quote_id"]),
+                text=q["text"],
+                is_quantitative=q["is_quantitative"],
+                quote_type=q["quote_type"],
+                attached_primary_url=q["attached_primary_url"],
+            )
+            for q in q_rows
+        ]
+        pool.append(
+            PooledSource(
+                source_id=str(s["source_id"]),
+                url=s["url"],
+                domain=s["domain"],
+                is_primary=s["is_primary"],
+                quotes=quotes,
+            )
+        )
+    return pool
