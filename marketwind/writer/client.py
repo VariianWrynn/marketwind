@@ -28,13 +28,17 @@ async def call_deepseek(messages: list[dict]) -> str:  # pragma: no cover - live
     base = (settings.openai_base_url or "").rstrip("/")
     headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
     body = {
+        # v4-pro is a reasoning model: reasoning_tokens (~6k on a full pool) are
+        # billed inside the completion budget BEFORE any JSON is emitted, so a
+        # tight max_tokens truncates content to empty. Budget for reasoning +
+        # output (found via the P1b live smoke).
         "model": settings.llm_model,
         "messages": messages,
-        "max_tokens": 8000,
+        "max_tokens": 16000,
         "response_format": {"type": "json_object"},
         "temperature": 0,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.post(f"{base}/chat/completions", headers=headers, json=body)
         resp.raise_for_status()
         return parse_chat_completion(resp.json())
