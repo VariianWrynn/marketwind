@@ -25,3 +25,6 @@ dist/
 
 # Local fixtures cache / scratch (keep committed fixtures under tests/)
 *.local
+
+# One-off smoke / scratch scripts (not part of the test suite)
+/scripts/

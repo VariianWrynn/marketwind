@@ -114,6 +114,7 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 3. **Prompt changes**: run `tests/prompt_regression/` on every Writer-prompt edit; a score below the previous version is not accepted.
 4. **Verify before completion (Law 5 spirit)**: before claiming "done/passing", run the actual command, read the full output, confirm, then claim. No command run = cannot claim it passes.
 5. **Failure cases**: everything the Verifier rejects goes into `claim_failures`; review weekly and feed it back into the rules.
+6. **Document after each sub-phase**: when a dev sub-phase completes, write a short progress note in `docs/progress/<phase>.md` — what each module does, its commit, and the invariants it proves. Keep it lightweight (a table + a few bullets), not a full design doc. See `docs/progress/P1a-scout.md` for the template.
 
 ---
 
@@ -131,6 +132,7 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 | `ARCHITECTURE.md` | 6-layer, agent boundaries, known gaps | when designing a module |
 | `DECISIONS.md` | locked decisions + ADR process | before changing any approach |
 | `tests/citation_ground_truth/samples.md` | 12 labeled samples (RED baseline) | when writing Verifier tests |
+| `docs/progress/<phase>.md` | per-sub-phase "what was done" notes | picking up / resuming a built layer |
 
 ---
 
