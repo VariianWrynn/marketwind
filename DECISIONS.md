@@ -31,6 +31,7 @@ Locked design decisions. **Changing any of them requires an ADR** (process at th
 | D-8 | **Failure-rate denominator = claim-level**: `(failed + dropped) / all drafted` | claims are the atomic unit; the threshold is more stable on them |
 | D-9 | **Claim state machine max retry = 1** | prevents infinite rewrite loops |
 | D-10 | **Two accepted costs**: the report reads choppier (cost of verifiability); the supply-chain section is thin on some days (honest reflection of the market) | do not later loosen D-2/D-3 |
+| D-31 | **Writer cites short pool aliases (`q1…`, `s1…`), not raw DB UUIDs; aliases are mapped back to real UUIDs *after* I8 validation** | does **not** loosen D-1 (still pool-only, still fail-closed) — it removes a pure mechanical failure mode. Evidence: P1b live smoke, claim c-015 emitted quote_id `…478` for the real `…477` (one-char slip in a 36-char UUID), and the fail-closed I8 validator correctly rejected the whole report over a transcription typo. Copying `q14` is far harder to get wrong than a UUID. Do **not** "fix" the serialization back to raw UUIDs |
 
 ### Model (v0.4 — supersedes the former judge decision)
 
