@@ -1,0 +1,13 @@
+{
+  "id": "chatcmpl-smoke",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"claims\": [{\"id\": \"c-001\", \"statement\": \"科创50上一交易日收涨0.36%\", \"quote_ids\": [\"q1\"]}], \"sentences\": [{\"sentence\": \"## 大盘动态\", \"claim_ids\": [], \"source_ids\": [], \"sentence_type\": \"structural\"}, {\"sentence\": \"科创50上一交易日收盘上涨0.36%。\", \"claim_ids\": [\"c-001\"], \"source_ids\": [\"s1\"], \"sentence_type\": \"factual\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}
