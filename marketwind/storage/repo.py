@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncpg
+import uuid
 
 from marketwind.scout.domain import Source
 from marketwind.writer.domain import PooledQuote, PooledSource
@@ -79,3 +80,37 @@ async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
             )
         )
     return pool
+
+
+async def persist_report(conn, claims, rendered_sentences) -> str:
+    """Insert claims (referenced by kept sentences) + sentences. Returns report_id."""
+    report_id = uuid.uuid4()
+    referenced = {cid for s in rendered_sentences for cid in s.claim_ids}
+    async with conn.transaction():
+        local_to_uuid: dict[str, object] = {}
+        for c in claims:
+            if c.local_id not in referenced:
+                continue  # drop claims whose sentence was tail-dropped (no orphans)
+            cid = await conn.fetchval(
+                """
+                insert into claims (statement, quote_ids)
+                values ($1, $2::uuid[]) returning claim_id;
+                """,
+                c.statement, c.quote_ids,
+            )
+            local_to_uuid[c.local_id] = cid
+        for s in rendered_sentences:
+            await conn.execute(
+                """
+                insert into sentences
+                    (report_id, claim_ids, source_ids, rendered_text, sentence_type, position)
+                values ($1, $2::uuid[], $3::uuid[], $4, $5, $6);
+                """,
+                report_id,
+                [local_to_uuid[c] for c in s.claim_ids],
+                s.source_ids,
+                s.text,
+                s.sentence_type,
+                s.position,
+            )
+    return str(report_id)

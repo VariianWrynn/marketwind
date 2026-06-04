@@ -10,6 +10,11 @@ from marketwind.scout.domain import Quote, Source
 from marketwind.scout.timeparse import CN_TZ
 from marketwind.storage.migrate import apply_migrations
 from marketwind.storage.repo import load_pool, upsert_source
+from marketwind.writer.domain import DraftClaim
+from marketwind.writer.render import render_brief
+from marketwind.writer.runner import run_writer
+from marketwind.writer.writer import assemble
+from marketwind.storage.repo import persist_report
 
 
 @pytest.fixture
@@ -47,3 +52,60 @@ async def test_load_pool_returns_sources_with_real_ids(conn):
     # quote ids are real uuids; one carries the primary trace
     assert all(q.quote_id for q in src.quotes)
     assert any(q.attached_primary_url for q in src.quotes)
+
+
+async def test_persist_report_writes_claims_and_sentences(conn):
+    await conn.execute("delete from sources;")
+    await conn.execute("delete from claims;")
+    await conn.execute("delete from sentences;")
+    sid = await upsert_source(conn, _sample_source())
+    pool = await load_pool(conn)
+    qid = pool[0].quotes[0].quote_id
+
+    from marketwind.writer.domain import DraftSentence, WriterOutput
+    out = WriterOutput(
+        claims=[DraftClaim("c-001", "句子一陈述", [qid])],
+        sentences=[DraftSentence("句子一。", ["c-001"], [sid], "factual")],
+    )
+    brief = render_brief(out)
+    report_id = await persist_report(conn, out.claims, brief.sentences)
+
+    n_claims = await conn.fetchval("select count(*) from claims;")
+    n_sent = await conn.fetchval(
+        "select count(*) from sentences where report_id = $1;", report_id
+    )
+    assert n_claims == 1 and n_sent == 1
+    row = await conn.fetchrow(
+        "select claim_ids, source_ids, rendered_text from sentences where report_id=$1;",
+        report_id,
+    )
+    assert len(row["claim_ids"]) == 1          # mapped to a real uuid
+    assert str(row["source_ids"][0]) == sid
+    assert row["rendered_text"].endswith("[1]")  # renderer marker persisted
+
+
+async def test_run_writer_end_to_end_with_stub(conn, fixtures_dir_writer):
+    import json
+    await conn.execute("delete from sources;")
+    await conn.execute("delete from claims;")
+    await conn.execute("delete from sentences;")
+    await upsert_source(conn, _sample_source())
+    pool = await load_pool(conn)
+    # Build a stub returning output referencing THIS pool's real ids.
+    sid = pool[0].source_id
+    qid = pool[0].quotes[0].quote_id
+    content = json.dumps({
+        "claims": [{"id": "c-001", "statement": "句子一陈述", "quote_ids": [qid]}],
+        "sentences": [{"sentence": "句子一。", "claim_ids": ["c-001"],
+                       "source_ids": [sid], "sentence_type": "factual"}],
+    })
+
+    async def stub_call(messages):
+        return content
+
+    report_id, body = await run_writer(conn, call=stub_call)
+    assert body.endswith("[1]")
+    n_sent = await conn.fetchval(
+        "select count(*) from sentences where report_id=$1;", report_id
+    )
+    assert n_sent == 1
