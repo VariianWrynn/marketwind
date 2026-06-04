@@ -27,6 +27,8 @@ def parse_and_validate(
         raise SchemaViolation(f"output is not valid JSON (free-form text?): {e}") from e
     if not isinstance(data, dict) or "claims" not in data or "sentences" not in data:
         raise SchemaViolation("output must be an object with 'claims' and 'sentences'")
+    if not isinstance(data["claims"], list) or not isinstance(data["sentences"], list):
+        raise SchemaViolation("'claims' and 'sentences' must each be a list")
 
     claims: list[DraftClaim] = []
     claim_ids_seen: set[str] = set()
@@ -34,6 +36,8 @@ def parse_and_validate(
         cid, statement, qids = c.get("id"), c.get("statement"), c.get("quote_ids")
         if not cid or not statement or not isinstance(qids, list) or not qids:
             raise SchemaViolation(f"malformed claim: {c!r}")
+        if cid in claim_ids_seen:
+            raise SchemaViolation(f"duplicate claim id: {cid!r}")
         unresolved = [q for q in qids if q not in valid_quote_ids]
         if unresolved:
             raise SchemaViolation(f"claim {cid} cites unknown quote_ids: {unresolved}")

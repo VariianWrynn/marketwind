@@ -77,3 +77,32 @@ def test_unresolvable_source_id_rejected():
     })
     with pytest.raises(SchemaViolation):
         parse_and_validate(bad, VALID_QIDS, VALID_SIDS)
+
+
+def test_duplicate_claim_id_rejected():
+    # Two claims share an id → local-id→uuid mapping would silently drop one
+    # on persist (data corruption). Fail closed instead.
+    bad = json.dumps({
+        "claims": [
+            {"id": "c-001", "statement": "甲", "quote_ids": ["q1"]},
+            {"id": "c-001", "statement": "乙", "quote_ids": ["q2"]},
+        ],
+        "sentences": [{"sentence": "句子。", "claim_ids": ["c-001"],
+                       "source_ids": ["s1"], "sentence_type": "factual"}],
+    })
+    with pytest.raises(SchemaViolation):
+        parse_and_validate(bad, VALID_QIDS, VALID_SIDS)
+
+
+def test_non_list_claims_rejected():
+    # Malformed shape (claims is null) must raise SchemaViolation, not a raw
+    # TypeError that escapes the fail-closed contract.
+    bad = json.dumps({"claims": None, "sentences": []})
+    with pytest.raises(SchemaViolation):
+        parse_and_validate(bad, VALID_QIDS, VALID_SIDS)
+
+
+def test_non_list_sentences_rejected():
+    bad = json.dumps({"claims": [], "sentences": "not a list"})
+    with pytest.raises(SchemaViolation):
+        parse_and_validate(bad, VALID_QIDS, VALID_SIDS)
