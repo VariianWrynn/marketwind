@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncpg
+import uuid
 
 from marketwind.scout.domain import Source
+from marketwind.writer.domain import PooledQuote, PooledSource
 
 
 async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
@@ -42,3 +44,73 @@ async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
                 q.is_quantitative, q.attached_primary_url,
             )
         return str(source_id)
+
+
+async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
+    """Load the persisted quote pool with real DB UUIDs (Writer input)."""
+    src_rows = await conn.fetch(
+        "select source_id, url, domain, is_primary from sources order by ingested_at;"
+    )
+    pool: list[PooledSource] = []
+    for s in src_rows:
+        q_rows = await conn.fetch(
+            """
+            select quote_id, text, is_quantitative, quote_type, attached_primary_url
+            from quotes where source_id = $1 order by span_start;
+            """,
+            s["source_id"],
+        )
+        quotes = [
+            PooledQuote(
+                quote_id=str(q["quote_id"]),
+                text=q["text"],
+                is_quantitative=q["is_quantitative"],
+                quote_type=q["quote_type"],
+                attached_primary_url=q["attached_primary_url"],
+            )
+            for q in q_rows
+        ]
+        pool.append(
+            PooledSource(
+                source_id=str(s["source_id"]),
+                url=s["url"],
+                domain=s["domain"],
+                is_primary=s["is_primary"],
+                quotes=quotes,
+            )
+        )
+    return pool
+
+
+async def persist_report(conn, claims, rendered_sentences) -> str:
+    """Insert claims (referenced by kept sentences) + sentences. Returns report_id."""
+    report_id = uuid.uuid4()
+    referenced = {cid for s in rendered_sentences for cid in s.claim_ids}
+    async with conn.transaction():
+        local_to_uuid: dict[str, object] = {}
+        for c in claims:
+            if c.local_id not in referenced:
+                continue  # drop claims whose sentence was tail-dropped (no orphans)
+            cid = await conn.fetchval(
+                """
+                insert into claims (statement, quote_ids)
+                values ($1, $2::uuid[]) returning claim_id;
+                """,
+                c.statement, c.quote_ids,
+            )
+            local_to_uuid[c.local_id] = cid
+        for s in rendered_sentences:
+            await conn.execute(
+                """
+                insert into sentences
+                    (report_id, claim_ids, source_ids, rendered_text, sentence_type, position)
+                values ($1, $2::uuid[], $3::uuid[], $4, $5, $6);
+                """,
+                report_id,
+                [local_to_uuid[c] for c in s.claim_ids],
+                s.source_ids,
+                s.text,
+                s.sentence_type,
+                s.position,
+            )
+    return str(report_id)

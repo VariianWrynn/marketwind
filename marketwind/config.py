@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     bocha_api_key: str | None = None
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    llm_model: str = "deepseek-v4-pro"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

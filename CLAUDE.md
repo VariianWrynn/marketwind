@@ -110,7 +110,7 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 ## 8. Development workflow
 
 1. **Before each module**: read the relevant `CITATION_CONTRACT.md` § + the companions that module loads.
-2. **TDD (Iron Law)**: write the failing test, watch it fail, then minimal code. The project's "tests" include the `tests/citation_ground_truth/` regression — any Writer/Verifier change must pass the sample set first.
+2. **TDD (Iron Law)**: write the failing test, then **watch it fail on an assertion (or a domain error like `SchemaViolation`) for the expected reason** — a bare `ImportError`/collection error ("module not found") is **not** a valid RED, since it fires identically for a good test and for `assert True` and proves nothing about what the test checks. For a brand-new module, scaffold a minimal stub (the module + the signature returning a wrong sentinel) so the test actually runs, *then* watch the assertion fail; only then write minimal code. The project's "tests" include the `tests/citation_ground_truth/` regression — any Writer/Verifier change must pass the sample set first.
 3. **Prompt changes**: run `tests/prompt_regression/` on every Writer-prompt edit; a score below the previous version is not accepted.
 4. **Verify before completion (Law 5 spirit)**: before claiming "done/passing", run the actual command, read the full output, confirm, then claim. No command run = cannot claim it passes.
 5. **Failure cases**: everything the Verifier rejects goes into `claim_failures`; review weekly and feed it back into the rules.
