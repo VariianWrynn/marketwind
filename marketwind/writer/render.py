@@ -35,11 +35,11 @@ def _render_kept(sentences) -> tuple[list[RenderedSentence], list[tuple[int, str
     return rendered, footnotes
 
 
-def render_brief(output: WriterOutput) -> RenderedBrief:
+def render_brief(output: WriterOutput, max_chars: int = MAX_CHARS) -> RenderedBrief:
     kept = list(output.sentences)
     while True:
         rendered, footnotes = _render_kept(kept)
         body = "".join(r.text for r in rendered)
-        if len(body) <= MAX_CHARS or not kept:
+        if len(body) <= max_chars or not kept:
             return RenderedBrief(body=body, sentences=rendered, footnotes=footnotes)
         kept.pop()  # drop the last whole sentence and re-render (markers renumber)
