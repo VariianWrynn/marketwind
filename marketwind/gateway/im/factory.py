@@ -12,10 +12,7 @@ def build_channels(settings) -> tuple[IMChannel, IMChannel]:
     if settings.im_channel == "stub":
         return StubSink(), StubSink()
     if settings.im_channel == "hermes_weixin":
-        if not (settings.weixin_account_id and settings.weixin_token):
-            raise ValueError("WEIXIN_ACCOUNT_ID and WEIXIN_TOKEN required for hermes_weixin")
-        primary = HermesWeixin(account_id=settings.weixin_account_id,
-                               token=settings.weixin_token)
+        primary = HermesWeixin(hermes_bin=settings.hermes_bin, target=settings.weixin_target)
         fallback = (WecomWebhook(webhook_url=settings.wecom_webhook_url)
                     if settings.wecom_webhook_url else StubSink())
         return primary, fallback

@@ -1,33 +1,48 @@
-"""Thin iLink send client (HermesWeixin). Send-only, static bearer token.
+"""HermesWeixin: send via the installed `hermes` CLI (ADR-0001).
 
-ENDPOINT and payload field names: CONFIRM against hermes iLink before finalizing
-(see plan Task 5 note). Token presented as a bearer header by default.
+The real WeChat iLink send needs a per-peer context_token session and
+version-pinned headers (see hermes_agent's gateway/platforms/weixin.py);
+reproducing it in-process is brittle. The `hermes` CLI is the tool's public
+surface and reads its own credentials from ~/.hermes/.env, so this is a thin
+subprocess wrapper — no protocol duplication, no credentials in this process.
+
+Contract: `hermes send --to <target> --json -f -` reads the body from stdin and
+prints a JSON result; exit 0 = ok, 1 = delivery error, 2 = usage error.
 """
 from __future__ import annotations
 
-import httpx
+import json
+import subprocess
 
 from marketwind.gateway.im.base import SendResult
 
-_ENDPOINT = "https://ilink.example/api/send"  # CONFIRM during implementation
+_TIMEOUT_S = 30
 
 
 class HermesWeixin:
-    def __init__(self, *, account_id: str, token: str) -> None:
-        self.account_id = account_id
-        self.token = token
+    def __init__(self, *, hermes_bin: str = "hermes", target: str = "weixin") -> None:
+        self.hermes_bin = hermes_bin
+        self.target = target
 
     def send(self, text: str) -> SendResult:
         try:
-            resp = httpx.post(
-                _ENDPOINT,
-                headers={"Authorization": f"Bearer {self.token}"},
-                json={"account_id": self.account_id, "content": text},
-                timeout=10.0,
+            proc = subprocess.run(
+                [self.hermes_bin, "send", "--to", self.target, "--json", "-f", "-"],
+                input=text.encode("utf-8"),
+                capture_output=True,
+                timeout=_TIMEOUT_S,
             )
-            resp.raise_for_status()
+        except FileNotFoundError:
+            return SendResult(ok=False, error=f"hermes binary not found: {self.hermes_bin}")
+        except subprocess.TimeoutExpired:
+            return SendResult(ok=False, error="hermes send timed out")
+        if proc.returncode != 0:
+            err = proc.stderr.decode("utf-8", "replace").strip() or f"exit {proc.returncode}"
+            return SendResult(ok=False, error=err)
+        try:
+            result = json.loads(proc.stdout.decode("utf-8", "replace"))
+        except json.JSONDecodeError:
+            return SendResult(ok=True)  # exit 0 but non-JSON output; treat as success
+        if result.get("success") is True:
             return SendResult(ok=True)
-        except httpx.HTTPStatusError as e:
-            return SendResult(ok=False, error=f"HTTP {e.response.status_code}")
-        except httpx.TransportError as e:
-            return SendResult(ok=False, error=str(e))
+        return SendResult(ok=False, error=str(result.get("error") or result))
