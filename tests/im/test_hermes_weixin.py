@@ -48,3 +48,31 @@ def test_send_returns_ok_false_when_binary_missing():
     with patch("subprocess.run", side_effect=FileNotFoundError()):
         res = ch.send("x")
     assert res.ok is False
+
+
+def test_nonzero_exit_surfaces_stdout_json_error():
+    """On non-zero exit, prefer stdout JSON 'error' field over stderr / 'exit N'."""
+    ch = HermesWeixin()
+    stdout_json = b'{"error": "iLink sendmessage rate limited: ret=-2 errcode=None errmsg=rate limited"}'
+    with patch("subprocess.run", return_value=_completed(1, stdout_json, b"")):
+        res = ch.send("hi")
+    assert res.ok is False
+    assert "rate limited" in res.error
+
+
+def test_nonzero_exit_falls_back_to_stderr_when_stdout_not_json():
+    """Precedence rule 2/3: non-JSON stdout → fall back to stderr (or 'exit N')."""
+    ch = HermesWeixin()
+    with patch("subprocess.run", return_value=_completed(1, b"not json", b"delivery failed")):
+        res = ch.send("x")
+    assert res.ok is False
+    assert "delivery failed" in (res.error or "")
+
+
+def test_nonzero_exit_falls_back_to_exit_code_when_both_empty():
+    """Precedence rule 3: no stdout JSON, no stderr → 'exit N'."""
+    ch = HermesWeixin()
+    with patch("subprocess.run", return_value=_completed(2, b"", b"")):
+        res = ch.send("x")
+    assert res.ok is False
+    assert "exit 2" in (res.error or "")

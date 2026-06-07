@@ -37,7 +37,13 @@ class HermesWeixin:
         except subprocess.TimeoutExpired:
             return SendResult(ok=False, error="hermes send timed out")
         if proc.returncode != 0:
-            err = proc.stderr.decode("utf-8", "replace").strip() or f"exit {proc.returncode}"
+            try:
+                _out = json.loads(proc.stdout.decode("utf-8", "replace"))
+                _json_err = str(_out.get("error") or "") if isinstance(_out, dict) else ""
+            except json.JSONDecodeError:
+                _json_err = ""
+            _stderr = proc.stderr.decode("utf-8", "replace").strip()
+            err = _json_err or _stderr or f"exit {proc.returncode}"
             return SendResult(ok=False, error=err)
         try:
             result = json.loads(proc.stdout.decode("utf-8", "replace"))
