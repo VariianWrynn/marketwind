@@ -15,10 +15,10 @@ from marketwind.writer.writer import assemble
 CallFn = Callable[[list[dict]], Awaitable[str]]
 
 
-async def run_writer(conn, *, call: CallFn) -> tuple[str, str]:
+async def run_writer(conn, *, call: CallFn, max_chars: int = 500) -> tuple[str, str]:
     """Returns (report_id, rendered brief body)."""
     pool = await load_pool(conn)
     output = await assemble(pool, call=call)
-    brief = render_brief(output)
+    brief = render_brief(output, max_chars=max_chars)
     report_id = await persist_report(conn, output.claims, brief.sentences)
     return report_id, brief.body

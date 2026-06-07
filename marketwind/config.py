@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     openai_base_url: str | None = None
     llm_model: str = "deepseek-v4-pro"
 
+    # IM push (P1c). Channel selection: "stub" | "hermes_weixin" | "wecom_webhook"
+    im_channel: str = "stub"
+    weixin_account_id: str | None = None
+    weixin_token: str | None = None
+    wecom_webhook_url: str | None = None
+    # Hermes CLI send (P1c, Option C / ADR-0001). Credentials live in ~/.hermes/.env;
+    # this process only needs to know how to invoke the CLI and which target to hit.
+    hermes_bin: str = "hermes"
+    weixin_target: str = "weixin"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
