@@ -57,6 +57,7 @@ Locked design decisions. **Changing any of them requires an ADR** (process at th
 |---|---|---|
 | D-16 | **Primary WeChat, backup Feishu** | owner's choice. WeChat personal-account automation is a known grey area subject to risk-control; Feishu as backup is the accepted mitigation if the WeChat session is cut |
 | D-17 | The Hermes WeChat adapter is a **plugin**, not the backbone, so losing any one channel is not fatal | channels are pluggable components |
+| D-17a | **`HermesWeixin` sends via the installed `hermes` CLI (`hermes send --to weixin --json -f -`), not a raw in-process iLink POST** — see [ADR-0001](docs/adr/0001-hermes-weixin-cli-send.md) | the real iLink send needs a per-peer `context_token` session + version-pinned headers; a thin static-bearer POST never worked. The CLI is the supported public surface and reads creds from `~/.hermes/.env`, so no WeChat secret lives in this process. Consistent with D-17 (still a pluggable adapter, still fails closed to the WeCom/stub fallback) |
 
 ---
 
