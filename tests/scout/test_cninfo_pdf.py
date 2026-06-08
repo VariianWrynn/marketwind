@@ -1,4 +1,8 @@
+from datetime import date, datetime, timezone
+
 from marketwind.scout.cninfo_pdf import derive_pdf_url, extract_pdf_text, fetch_cninfo_disclosure
+from marketwind.scout.domain import Quote, Source
+from marketwind.scout.enrich import enrich_primary
 
 _DETAIL = ("http://www.cninfo.com.cn/new/disclosure/detail?stockCode=688981"
            "&announcementId=1219447112&orgId=gshk0000981"
@@ -120,3 +124,58 @@ async def test_fetch_disclosure_underivable_url_skips_get():
     client = _FakeClient(_FakeResp(200, _build_minimal_pdf("x")))
     assert await fetch_cninfo_disclosure(client, "https://news.example.com/x") == ""
     assert client.calls == []  # no GET issued when URL is not derivable
+
+
+_CONS = {"中芯国际": "688981"}
+_PUB = datetime(2024, 2, 29, tzinfo=timezone.utc)  # publish_ts is non-optional, tz-aware
+
+
+def _quote(text):
+    return Quote(text=text, span_start=0, span_end=len(text), context_before=None,
+                 context_after=None, is_quantitative=True)
+
+
+def _source(quotes):
+    return Source(url="https://news.example.com/a", domain="example.com",
+                  publish_ts=_PUB, raw_content="x", quotes=quotes)
+
+
+async def _classify_none(text):
+    return None
+
+
+async def test_integration_pdf_number_match_attaches_primary():
+    pdf = _build_minimal_pdf("SMIC net profit margin 12.34%")
+    client = _FakeClient(_FakeResp(200, pdf))
+
+    async def trace(claim_type, symbol, on_date):
+        assert (claim_type, symbol) == ("earnings", "688981")
+        return _DETAIL_OK  # a cninfo detail URL → derivable PDF
+
+    async def fetch(url):
+        return await fetch_cninfo_disclosure(client, url)
+
+    out = await enrich_primary(
+        [_source([_quote("中芯国际净利润率同比12.34%")])],
+        classify=_classify_none, trace=trace, fetch=fetch,
+        constituents=_CONS, on_date=date(2024, 2, 29),
+    )
+    assert out[0].quotes[0].attached_primary_url == _DETAIL_OK
+
+
+async def test_integration_pdf_wrong_number_does_not_attach():
+    pdf = _build_minimal_pdf("SMIC net profit margin 99.99%")
+    client = _FakeClient(_FakeResp(200, pdf))
+
+    async def trace(claim_type, symbol, on_date):
+        return _DETAIL_OK
+
+    async def fetch(url):
+        return await fetch_cninfo_disclosure(client, url)
+
+    out = await enrich_primary(
+        [_source([_quote("中芯国际净利润率同比12.34%")])],
+        classify=_classify_none, trace=trace, fetch=fetch,
+        constituents=_CONS, on_date=date(2024, 2, 29),
+    )
+    assert out[0].quotes[0].attached_primary_url is None

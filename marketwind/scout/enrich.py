@@ -64,12 +64,14 @@ async def enrich_primary(sources: list[Source], *, classify: ClassifyFn,
 
 
 async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - live
-    """Wire the real cninfo trace + Playwright fetch + live STAR50 constituent
-    map. The DeepSeek fallback classifier is stubbed to None this phase
-    (rules-only live); wiring the real call is a recorded follow-up. Smoke-only."""
-    from playwright.async_api import async_playwright
+    """Wire the real cninfo trace + disclosure-PDF fetch + live STAR50
+    constituent map. The DeepSeek fallback classifier is stubbed to None this
+    phase (rules-only live). The disclosure fetch is plain HTTP (httpx) →
+    derive PDF URL → download → pypdf extract; no Playwright in the enrich pass
+    (gather_live still uses Playwright separately). Smoke-only."""
+    import httpx
 
-    from marketwind.scout import fetch as fetch_mod
+    from marketwind.scout.cninfo_pdf import fetch_cninfo_disclosure
     from marketwind.scout.market import fetch_star50_constituents
     from marketwind.scout.primary import trace_to_primary
 
@@ -81,16 +83,11 @@ async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - 
     async def _trace(claim_type, symbol, d):
         return await trace_to_primary(claim_type, symbol, d)
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
-        context = await browser.new_context()
-
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30,
+                                 headers={"User-Agent": "Mozilla/5.0"}) as client:
         async def _fetch(url):
-            return await fetch_mod.fetch_html(context, url)
+            return await fetch_cninfo_disclosure(client, url)
 
-        try:
-            return await enrich_primary(sources, classify=_classify, trace=_trace,
-                                        fetch=_fetch, constituents=constituents,
-                                        on_date=on_date)
-        finally:
-            await browser.close()
+        return await enrich_primary(sources, classify=_classify, trace=_trace,
+                                    fetch=_fetch, constituents=constituents,
+                                    on_date=on_date)
