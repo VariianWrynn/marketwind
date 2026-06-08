@@ -1,4 +1,4 @@
-from marketwind.scout.cninfo_pdf import derive_pdf_url, extract_pdf_text
+from marketwind.scout.cninfo_pdf import derive_pdf_url, extract_pdf_text, fetch_cninfo_disclosure
 
 _DETAIL = ("http://www.cninfo.com.cn/new/disclosure/detail?stockCode=688981"
            "&announcementId=1219447112&orgId=gshk0000981"
@@ -71,3 +71,52 @@ def test_extract_pdf_text_reads_text_layer():
 
 def test_extract_pdf_text_corrupt_bytes_returns_empty():
     assert extract_pdf_text(b"not a pdf at all") == ""
+
+
+_DETAIL_OK = ("http://www.cninfo.com.cn/new/disclosure/detail?stockCode=688256"
+              "&announcementId=1219210058&orgId=nssc1000595"
+              "&announcementTime=2024-02-29")
+
+
+class _FakeResp:
+    def __init__(self, status_code, content, content_type="application/pdf"):
+        self.status_code = status_code
+        self.content = content
+        self.headers = {"content-type": content_type}
+
+
+class _FakeClient:
+    """Records GET calls and returns a queued response."""
+    def __init__(self, resp):
+        self._resp = resp
+        self.calls = []
+
+    async def get(self, url):
+        self.calls.append(url)
+        return self._resp
+
+
+async def test_fetch_disclosure_happy_path_returns_extracted_text():
+    pdf = _build_minimal_pdf("net profit 12.34%")
+    client = _FakeClient(_FakeResp(200, pdf))
+    text = await fetch_cninfo_disclosure(client, _DETAIL_OK)
+    assert "net profit 12.34%" in text
+    assert client.calls == [
+        "http://static.cninfo.com.cn/finalpage/2024-02-29/1219210058.PDF"
+    ]
+
+
+async def test_fetch_disclosure_non_200_returns_empty():
+    client = _FakeClient(_FakeResp(404, b""))
+    assert await fetch_cninfo_disclosure(client, _DETAIL_OK) == ""
+
+
+async def test_fetch_disclosure_wrong_content_type_returns_empty():
+    client = _FakeClient(_FakeResp(200, b"<html>shell</html>", "text/html"))
+    assert await fetch_cninfo_disclosure(client, _DETAIL_OK) == ""
+
+
+async def test_fetch_disclosure_underivable_url_skips_get():
+    client = _FakeClient(_FakeResp(200, _build_minimal_pdf("x")))
+    assert await fetch_cninfo_disclosure(client, "https://news.example.com/x") == ""
+    assert client.calls == []  # no GET issued when URL is not derivable
