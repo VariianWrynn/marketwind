@@ -4,7 +4,10 @@ query params (no extra API call); extract text with pypdf; every limb fails
 closed ("" / None → no attach), so the chain never launders (Iron Law 3)."""
 from __future__ import annotations
 
+import io
 from urllib.parse import parse_qs, urlparse
+
+from pypdf import PdfReader
 
 
 def derive_pdf_url(detail_url: str) -> str | None:
@@ -23,3 +26,14 @@ def derive_pdf_url(detail_url: str) -> str | None:
         return None
     # cninfo static host is HTTP-only (no TLS on this path) — do not "fix" to https.
     return f"http://static.cninfo.com.cn/finalpage/{ann_time}/{ann_id}.PDF"
+
+
+def extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Concatenate the text layer of every page. Returns "" on any pypdf error
+    or when there is no extractable text (image-only / mojibake PDFs) — the
+    caller then finds no number and declines to attach (fails closed)."""
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        return "".join(page.extract_text() or "" for page in reader.pages)
+    except Exception:
+        return ""
