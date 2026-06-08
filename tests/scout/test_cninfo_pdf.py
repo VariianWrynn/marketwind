@@ -1,4 +1,4 @@
-from marketwind.scout.cninfo_pdf import derive_pdf_url
+from marketwind.scout.cninfo_pdf import derive_pdf_url, extract_pdf_text
 
 _DETAIL = ("http://www.cninfo.com.cn/new/disclosure/detail?stockCode=688981"
            "&announcementId=1219447112&orgId=gshk0000981"
@@ -35,9 +35,6 @@ def test_derive_pdf_url_whitespace_announcement_id_returns_none():
 
 def test_derive_pdf_url_empty_string_returns_none():
     assert derive_pdf_url("") is None
-
-
-from marketwind.scout.cninfo_pdf import extract_pdf_text
 
 
 def _build_minimal_pdf(text: str) -> bytes:
