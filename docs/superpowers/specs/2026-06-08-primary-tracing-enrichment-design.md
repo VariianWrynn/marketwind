@@ -41,7 +41,7 @@ Every seam failure is non-fatal and degrades to *no attach* — one bad quote ne
 
 - **`scout/amount.py` (new): amount parser + tolerant matcher.** `numbers.py` only *detects* a quantity (`is_quantitative` → bool); it does not extract a value. New: `parse_amount(text) -> list[NormalizedAmount]` (digit + magnitude → a canonical numeric value in base units, plus percentage values), and `amount_matches(quote_text, disclosure_text, *, rel_tol) -> bool` (true iff some amount in the quote appears in the disclosure within `rel_tol`, handling unit/rounding divergence — 媒体 "3.6亿" ≈ filing "360,000,000元" ≈ "3.60亿元"). Reuses `numbers.py` magnitude vocabulary; does **not** modify `numbers.py`.
 - **`scout/claim_extract.py` (new): rules classifier.** `extract_claim(text, constituents) -> ClaimRef | None` returning `(claim_type, symbol)` or None when rules are inconclusive. Pure, offline.
-- **`scout/enrich.py` (new): the pass.** `enrich_primary(sources, *, classify, trace, fetch, constituents, on_date, rel_tol) -> list[Source]` — pure orchestration over injected seams. Plus `enrich_primary_live(conn, sources, *, on_date)` (`# pragma: no cover`) wiring the real DeepSeek classify + `trace_to_primary` + Playwright fetch + a live constituent fetch.
+- **`scout/enrich.py` (new): the pass.** `enrich_primary(sources, *, classify, trace, fetch, constituents, on_date, rel_tol) -> list[Source]` — pure orchestration over injected seams. Plus `enrich_primary_live(conn, sources, *, on_date)` (`# pragma: no cover`) wiring `trace_to_primary` + Playwright fetch + a live constituent fetch. **The DeepSeek fallback seam is built and offline-proven, but `enrich_primary_live` stubs `classify` to `None` (rules-only end-to-end live) for this phase** — the closed STAR50 set means quotes almost always name the constituent, so the fallback (for unnamed references) is a YAGNI edge case; wiring the real DeepSeek call + its prompt-regression is a recorded follow-up.
 - **Constituent map source (new, live).** `market.py` currently has no constituent list. Add a `# pragma: no cover` live fetcher (akshare STAR50 constituents → `{name: symbol}`); the offline pass receives the map as the injected `constituents` parameter.
 
 ## Data flow into `__main__` / live path
@@ -70,5 +70,6 @@ Offline, injected seams, no DB/network:
 
 - **Exchange + regulator venue lookups and their match-guards** — continues P1a's "full venue mapping table is P2". `shareholding_reduction` (exchange) is quantitative and will need this; `policy` (regulator) is qualitative. Their own phase.
 - **The Verifier / I3 check that *consumes* `attached_primary_url`** — this phase *produces* the primary-URL data; the Verifier that enforces I3 over it is the separate P1b-deferred Verifier phase. No scope-creep into it here.
+- **The real live DeepSeek fallback call** — `enrich_primary_live` stubs `classify` to `None` this phase (rules-only live). Wiring the real call + its prompt-regression is a follow-up.
 - DeepSeek classifier prompt-regression tuning beyond a basic correctness test — the rules path carries the offline guarantee; the fallback is best-effort.
 ```
