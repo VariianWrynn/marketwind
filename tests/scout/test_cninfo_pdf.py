@@ -25,3 +25,13 @@ def test_derive_pdf_url_missing_time_returns_none():
 
 def test_derive_pdf_url_non_cninfo_url_returns_none():
     assert derive_pdf_url("https://news.example.com/article/123") is None
+
+
+def test_derive_pdf_url_whitespace_announcement_id_returns_none():
+    url = ("http://www.cninfo.com.cn/new/disclosure/detail?stockCode=688981"
+           "&announcementId=%20&orgId=gshk0000981&announcementTime=2024-03-29")
+    assert derive_pdf_url(url) is None
+
+
+def test_derive_pdf_url_empty_string_returns_none():
+    assert derive_pdf_url("") is None
