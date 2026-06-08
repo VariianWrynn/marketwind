@@ -43,6 +43,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
     from marketwind.scheduling.run_once import run_once
     from marketwind.scout.calendar import live_prev_trading_session, _load_sessions
     from marketwind.scout.gather import gather_live
+    from marketwind.scout.enrich import enrich_primary_live
 
     args = build_parser().parse_args(argv)
     now = datetime.now(timezone.utc)
@@ -60,7 +61,8 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
     conn = await asyncpg.connect(settings.database_url)
     try:
         async def _gather():
-            return await gather_live(conn, now=now, prev_session=prev)
+            pool = await gather_live(conn, now=now, prev_session=prev)
+            return await enrich_primary_live(conn, pool, on_date=prev)
 
         async def _make_body():
             from marketwind.writer.client import call_deepseek
