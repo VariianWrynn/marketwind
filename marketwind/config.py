@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     hermes_bin: str = "hermes"
     weixin_target: str = "weixin"
 
+    # Triggering (P2a). misfire grace + per-job freshness tolerance (minutes) +
+    # absolute freshness ceiling (CST). Retry budget is reserved here for the
+    # startup timing assertion; the retry EXECUTION is P2b.
+    misfire_grace_s: int = 900
+    max_transient_retries: int = 2
+    backoff_ceiling_s: int = 30
+    premarket_tolerance_min: int = 90
+    main_tolerance_min: int = 90
+    freshness_ceiling_cst: str = "10:00"
+    main_report_time_cst: str = "07:00"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
