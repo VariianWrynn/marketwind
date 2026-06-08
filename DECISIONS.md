@@ -70,6 +70,8 @@ Locked design decisions. **Changing any of them requires an ADR** (process at th
 | D-20 | On holidays run a degraded "news digest" (no market agents), title clearly marked as a non-trading day | weekends are policy-dense; not publishing misses the most important window |
 | D-21 | Internal storage in UTC; render in each source's native timezone | engineering convention + faster reader verification |
 | D-22 | A **trading-calendar service** is required (akshare `tool_trade_date_hist_sina` + local cache fallback) | otherwise the holiday cron emits empty reports |
+| D-P2-1 | **Dual-cron mechanics ship in P2a (both jobs, real DST anchor via APScheduler ET cron); D-19's 07:00 self-contained content-split + fold marker is DEFERRED** | phased delivery, not a reversal — the triggering layer is the gating dependency; the content shape is independent and lands later. Consistent with D-18/D-19 |
+| D-P2-2 | **Calendar gates a non-trading day with a labeled skip status (to dev channel); D-20's degraded news-digest is DEFERRED** | a labeled skip is honest and cheap; the digest is a content feature, separable from the gate. Consistent with D-20/D-22 |
 
 ---
 

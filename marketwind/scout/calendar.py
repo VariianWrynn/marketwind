@@ -29,3 +29,8 @@ def _load_sessions() -> tuple[date, ...]:  # pragma: no cover - live akshare cal
 
 def live_prev_trading_session(today: date) -> date:  # pragma: no cover - live
     return prev_trading_session(today, list(_load_sessions()))
+
+
+def is_trading_session(today: date, sessions: list[date]) -> bool:
+    """True iff `today` is one of the known trading sessions."""
+    return today in set(sessions)
