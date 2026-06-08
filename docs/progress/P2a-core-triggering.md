@@ -28,6 +28,7 @@
 ## Open gaps (→ P2b / follow-ups)
 - **Primary-tracing wiring (BLOCKER for live floor):** `build_pool` sets `attached_primary_url=None`; the live floor cannot pass until claim_type/company extraction + `trace_to_primary` are wired. Real delivery is proven via a seeded floor-passing pool. Needs its own brainstorm.
 - **Q5 cold-delivery verification:** after the 24h session kill-time, fire one tokenless home-channel send with no prior reply. Lands → unattended push holds; fails → WeCom promotes to unattended primary (P2b).
+- **Per-job anchor/tolerance dispatch (P2b):** `build_scheduler` registers both jobs against one parameterless `run`, and the smoke `main()` always computes the **premarket** anchor (18:00 ET) with `premarket_tolerance_min`. `main_report_time_cst` / `main_tolerance_min` are therefore currently dead config — the 07:00 CST job must be wired to its OWN anchor + tolerance before it can fire correctly (today only `--force-calendar` premarket smoke is exercised).
 - **P2b resilience:** run-ledger + boot-time catch-up, holiday-vs-infra-dead escalation, owner-visible failure pages, transient-retry execution + non-retryable paging, dead-man's switch, durable both-channels-fail.
 
 ## How to test
