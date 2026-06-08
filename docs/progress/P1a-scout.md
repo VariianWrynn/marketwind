@@ -50,5 +50,5 @@ Live chain (needs BOCHA_API_KEY + Chromium): `PYTHONPATH=. .venv\Scripts\python.
 ## Out of scope / known gaps
 
 - `test_health.py` (P0) needs the FastAPI `app` container on :8000 — not required for Scout.
-- Primary trace covers cninfo only; full venue mapping table is P2.
+- Primary trace covers cninfo only. The enrichment wiring + number match-guard landed in `docs/progress/primary-tracing.md`; exchange/regulator venue lookups remain deferred there.
 - Live per-site `publish_ts` parsing is per-source work deferred past the smoke.
