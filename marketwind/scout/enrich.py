@@ -61,3 +61,36 @@ async def enrich_primary(sources: list[Source], *, classify: ClassifyFn,
             new_quotes.append(replace(q, attached_primary_url=url) if url else q)
         out.append(replace(src, quotes=new_quotes))
     return out
+
+
+async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - live
+    """Wire the real cninfo trace + Playwright fetch + live STAR50 constituent
+    map. The DeepSeek fallback classifier is stubbed to None this phase
+    (rules-only live); wiring the real call is a recorded follow-up. Smoke-only."""
+    from playwright.async_api import async_playwright
+
+    from marketwind.scout import fetch as fetch_mod
+    from marketwind.scout.market import fetch_star50_constituents
+    from marketwind.scout.primary import trace_to_primary
+
+    constituents = fetch_star50_constituents()
+
+    async def _classify(text):
+        return None  # DeepSeek fallback is a follow-up; rules-only live for now
+
+    async def _trace(claim_type, symbol, d):
+        return await trace_to_primary(claim_type, symbol, d)
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        context = await browser.new_context()
+
+        async def _fetch(url):
+            return await fetch_mod.fetch_html(context, url)
+
+        try:
+            return await enrich_primary(sources, classify=_classify, trace=_trace,
+                                        fetch=_fetch, constituents=constituents,
+                                        on_date=on_date)
+        finally:
+            await browser.close()

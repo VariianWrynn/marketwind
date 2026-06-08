@@ -25,3 +25,14 @@ def fetch_star50_recap(prev_session) -> dict:  # pragma: no cover - live akshare
         "turnover": float(row.get("amount", 0)),
         "as_of": str(row.get("date", prev_session)),
     }
+
+
+def fetch_star50_constituents() -> dict[str, str]:  # pragma: no cover - live akshare
+    """Return {constituent_name: symbol} for the STAR50 (科创50) index.
+
+    akshare column names vary by version; adjust at smoke time if needed.
+    """
+    import akshare as ak
+
+    df = ak.index_stock_cons(symbol="000688")
+    return {str(r["品种名称"]): str(r["品种代码"]) for _, r in df.iterrows()}
