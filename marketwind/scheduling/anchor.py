@@ -15,3 +15,16 @@ def anchor_utc(d: date, hour: int, minute: int, tz_name: str) -> datetime:
     """
     local = datetime(d.year, d.month, d.day, hour, minute, tzinfo=ZoneInfo(tz_name))
     return local.astimezone(timezone.utc)
+
+
+def freshness_ok(now: datetime, anchor: datetime, *,
+                 tolerance_min: int, ceiling_cst: time) -> tuple[bool, str]:
+    """(fresh, reason). Late if now is > tolerance_min past anchor; else stale if
+    the CST wall-clock is past the absolute ceiling; else fresh."""
+    late_by = (now - anchor).total_seconds() / 60.0
+    if late_by > tolerance_min:
+        return False, f"late: fired {late_by:.0f}min after anchor (tol {tolerance_min})"
+    now_cst = now.astimezone(CN_TZ).timetz().replace(tzinfo=None)
+    if now_cst > ceiling_cst:
+        return False, f"past ceiling {ceiling_cst.strftime('%H:%M')} CST (now {now_cst.strftime('%H:%M')})"
+    return True, "fresh"
