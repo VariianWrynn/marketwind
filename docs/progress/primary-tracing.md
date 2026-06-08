@@ -26,6 +26,7 @@
 - **DeepSeek fallback classifier is wired offline (seam tested) but stubbed to None in `enrich_primary_live`** — rules-only end-to-end live for now. Wiring the real DeepSeek call + its prompt-regression is a follow-up.
 - **The Verifier / I3 check that consumes `attached_primary_url`** is the separate (P1b-deferred) Verifier phase — this phase produces the data, not the check.
 - `fetch_star50_constituents` / `trace_to_primary` akshare column + venue coverage are smoke-validated only.
+- **`trace_to_primary` ignores `on_date`**: it accepts the parameter but returns the most-recent announcement regardless of date, so a date-filtered lookup is a follow-up; the number-match guard is only a partial defence when the same figure appears in both a current and a prior filing.
 
 ## How to test
 `.venv/Scripts/python.exe -m pytest tests/scout/test_amount.py tests/scout/test_claim_extract.py tests/scout/test_enrich.py -v` — all offline.

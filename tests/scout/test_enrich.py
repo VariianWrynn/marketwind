@@ -95,6 +95,28 @@ async def test_deepseek_fallback_used_when_rules_inconclusive():
     assert out[0].quotes[0].attached_primary_url == "https://cninfo.com.cn/d1"
 
 
+async def test_trace_none_does_not_attach():
+    """trace returning None → no attach; fetch must never be reached."""
+    async def trace(ct, sym, on_date):
+        return None  # no disclosure found
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace,
+                               fetch=_never_fetch, constituents=CONS,
+                               on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url is None
+
+
+async def test_non_cninfo_venue_does_not_attach():
+    """shareholding_reduction routes to 'exchange', not 'cninfo' → venue guard
+    fires before trace; trace must never be called."""
+    out = await enrich_primary([_src([_q("中芯国际减持1000万股")])],
+                               classify=_classify_none, trace=_never_trace,
+                               fetch=_never_fetch, constituents=CONS,
+                               on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url is None
+
+
 async def test_one_bad_quote_does_not_abort_rest():
     async def trace(ct, sym, on_date):
         return "https://cninfo.com.cn/d1"
