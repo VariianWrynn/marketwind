@@ -12,7 +12,8 @@
 | `scout/amount.py` | parse money/percent values + tolerant match (`amount_matches`) |
 | `scout/claim_extract.py` | rules classifier: closed-set company + keyword claim_type |
 | `scout/enrich.py::enrich_primary` | per-quant-quote extract→route→trace→number-verify→attach, injected seams |
-| `scout/enrich.py::enrich_primary_live` | smoke-only wiring (rules-only classify, cninfo trace, Playwright fetch) |
+| `scout/enrich.py::enrich_primary_live` | smoke-only wiring (rules-only classify, cninfo trace, httpx disclosure-PDF fetch — no Playwright) |
+| `scout/cninfo_pdf.py` | derive static PDF URL + pypdf text-extract + fetch_cninfo_disclosure glue (fails closed) |
 | `scout/market.py::fetch_star50_constituents` | smoke-only live constituent map |
 
 ## Invariants proved
@@ -30,16 +31,33 @@ First real `gather_live → enrich_primary_live → evaluate_floor` smoke agains
 
 3. **Fetch limb can't read cninfo disclosure numbers (new blocker, follow-up).** A cninfo `公告链接` detail page is a JS shell whose actual announcement (the 业绩预告 net-profit/revenue figure) is a **PDF** loaded via `static.cninfo.com.cn/...PDF`. The existing Playwright `fetch_html` returns ~82 KB of page chrome but *not* the disclosure's numbers (probe of 688981's 2024-02-07 preview found only stray page-furniture percents). So `amount_matches` cannot confirm a cninfo figure and the guard **correctly declines to attach** (no-attach-on-doubt — safe, never launders), but the **live floor stays blocked** until the disclosure PDF is fetched + parsed. PDF fetch/parse for cninfo disclosures is a recorded follow-up; it is the next limb after the trace-API fix.
 
+**3 — RESOLVED (cninfo-pdf-extraction phase, 2026-06-08).** The fetch limb now
+reads the disclosure PDF, not the JS shell. `marketwind/scout/cninfo_pdf.py`:
+`derive_pdf_url` builds the static URL
+`static.cninfo.com.cn/finalpage/{announcementTime}/{announcementId}.PDF` from
+the akshare detail-record query params (no extra API call); `extract_pdf_text`
+(pypdf) reads the text layer; `fetch_cninfo_disclosure` does derive→GET→verify
+content-type→extract. `enrich_primary_live` now fetches over httpx (Playwright
+dropped from the enrich pass). Research-verified live: A-share 业绩快报/预告 PDFs
+(e.g. 寒武纪 688256) extract clean and the existing `amount_matches` guard
+confirms the figure. The chain still fails **closed** on every error.
+
 **Recorded limitation — simulated clock.** The project's "today" is 2026-06-08 but akshare returns *real* market data, so a date window anchored on a 2026 session has no real disclosures. A fully real one-shot "this session's pool clears the floor" therefore can't be demonstrated under the fake clock; the live trace limb is instead proven against a real *historical* window (verified: 688981/688256/688012 earnings → real cninfo detail URLs). Real-time operation will not have this constraint.
 
-**Net live state:** trace limb fixed and proven (real URLs); fetch/number-verify limb blocked on PDF parsing; the *mechanism* (extract→route→trace→number-verify→attach) is correct and offline+E2E proven. The live floor cannot clear until the PDF limb lands — but it fails **closed**, never laundering.
+**Net live state (updated 2026-06-08, cninfo-pdf-extraction):** trace limb fixed and proven (real URLs); the fetch/number-verify limb now reads the disclosure **PDF** (`scout/cninfo_pdf.py`), so A-share figures can be confirmed live and the floor can clear when the pool carries a real disclosure quote. The full mechanism (extract→route→trace→fetch-PDF→number-verify→attach) is offline+E2E proven. Mojibake H-share and image-only PDFs degrade to no-attach (recorded gaps). Still fails **closed**, never laundering.
 
 ## Open gaps (recorded)
 - **Exchange + regulator venue lookups + their match-guards** — continues P1a's "full venue mapping table is P2". `shareholding_reduction` (exchange, quantitative) needs this; `policy` (regulator) is qualitative.
 - **DeepSeek fallback classifier is wired offline (seam tested) but stubbed to None in `enrich_primary_live`** — rules-only end-to-end live for now. Wiring the real DeepSeek call + its prompt-regression is a follow-up.
 - **The Verifier / I3 check that consumes `attached_primary_url`** is the separate (P1b-deferred) Verifier phase — this phase produces the data, not the check.
 - `fetch_star50_constituents` / `trace_to_primary` live akshare calls are smoke-validated only (the network call is `# pragma: no cover`; the URL-selection + category-mapping logic is unit-tested).
-- **cninfo disclosure PDF parsing (next blocker for the live floor):** the `公告链接` detail page is a PDF-backed JS shell; `fetch_html` cannot read the announcement's numbers, so the number-match guard can't confirm a cninfo figure live. Fetching + parsing the disclosure PDF (`static.cninfo.com.cn/...PDF`) is the next limb required before the live floor can clear. Until then the chain fails closed (no attach), never laundering.
+- **cninfo disclosure PDF parsing — RESOLVED (cninfo-pdf-extraction phase, 2026-06-08).** The `公告链接` PDF-backed JS shell is no longer fetched; `marketwind/scout/cninfo_pdf.py` derives + downloads + pypdf-extracts the disclosure PDF so the number-match guard can confirm A-share figures live. See finding 3 above. Two new fail-closed gaps below.
+- **Mojibake H-share / 港股 disclosure PDFs** — some dual-listing PDFs use a
+  non-standard CJK font with no ToUnicode map; `pypdf` returns garbled text, so
+  the unit token never parses and the guard declines (fails closed, lower
+  recall). No OCR by design (OCR'ing financial digits is a Law-3 risk).
+- **Image-only / scanned disclosure PDFs** — no text layer → empty extract →
+  no attach (fails closed). Out of scope (no OCR).
 - **Single-candidate trace + category narrowing:** `trace_to_primary` returns one URL (the first disclosure in the window, narrowed by a `claim_type→cninfo category` map) and the number-match guard confirms it. A media figure whose disclosure is not the top hit in its category will miss; multi-candidate trace (try each until the number matches) is a follow-up. The guard keeps a miss *safe* (no attach), only lower-recall.
 
 ## How to test
