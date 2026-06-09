@@ -52,6 +52,11 @@ async def test_load_pool_returns_sources_with_real_ids(conn):
     # quote ids are real uuids; one carries the primary trace
     assert all(q.quote_id for q in src.quotes)
     assert any(q.attached_primary_url for q in src.quotes)
+    # raw_content is carried into the pool (verifier re-resolution prerequisite)
+    assert src.raw_content == "句子一。句子二涨0.36%。"
+    # re-resolution invariant: every quote's span slices back to its text
+    for q in src.quotes:
+        assert src.raw_content[q.span_start:q.span_end] == q.text
 
 
 async def test_persist_report_writes_claims_and_sentences(conn):

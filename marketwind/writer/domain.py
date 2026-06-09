@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 
@@ -14,6 +15,8 @@ class PooledQuote:
     is_quantitative: bool
     quote_type: str        # factual | quoted_inference | data
     attached_primary_url: str | None
+    span_start: int
+    span_end: int
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,7 @@ class PooledSource:
     domain: str
     is_primary: bool
     quotes: list[PooledQuote]
+    raw_content: str
 
 
 # ---- Output: what the Writer (DeepSeek) emits, after schema validation ----
@@ -64,3 +68,13 @@ class RenderedBrief:
     body: str                       # the joined ≤500-char brief
     sentences: list[RenderedSentence]   # kept sentences only (after over-length drop)
     footnotes: list[tuple[int, str]]    # (n, source_id) in assignment order
+
+
+# ---- Deferred-persistence bundle returned by draft_report ----
+
+@dataclass(frozen=True)
+class DraftBundle:
+    output: WriterOutput
+    pool: list[PooledSource]
+    body: str
+    commit: Callable[[], Awaitable[str]]   # zero-arg async thunk → report_id

@@ -7,6 +7,9 @@ from marketwind.gateway.im.base import IMChannel, SendResult
 from marketwind.gateway.im.label import apply_label
 from marketwind.scout.domain import Source
 from marketwind.scout.runner import evaluate_floor
+from marketwind.verifier.domain import Violation
+from marketwind.verifier.verifier import verify
+from marketwind.writer.domain import DraftBundle
 
 
 def send_with_fallback(text: str, *, primary: IMChannel, fallback: IMChannel,
@@ -28,20 +31,47 @@ def _status_message(floor, trace_id: str) -> str:
             f"independent_outlets={floor.independent_outlets} — brief NOT published")
 
 
-async def run_pipeline(*, sources: list[Source],
-                       make_body: Callable[[], Awaitable[str]],
-                       primary: IMChannel, fallback: IMChannel,
-                       dev_channel: IMChannel, trace_id: str) -> None:
-    """Grounded-floor gate (reuse evaluate_floor) -> assemble -> label -> push.
+def _verify_status(result, trace_id: str) -> str:
+    checks = ",".join(sorted({v.check for v in result.violations}))
+    n = len(result.violations)
+    return (f"[MarketWind] verifier gate failed trace_id={trace_id} "
+            f"checks={checks} ({n} violations) — brief NOT published")
 
-    Sub-floor: emit status with trace_id to dev_channel and return WITHOUT
-    assembling a brief (spec section 8). make_body is lazy so a shortfall costs no
-    Writer/DeepSeek call.
+
+async def run_pipeline(
+    *,
+    sources: list[Source],
+    draft: Callable[[], Awaitable[DraftBundle]],
+    judge: Callable[[str], Awaitable[str]],
+    record_fail: Callable[[str, list[Violation]], Awaitable[None]],
+    primary: IMChannel,
+    fallback: IMChannel,
+    dev_channel: IMChannel,
+    trace_id: str,
+) -> None:
+    """Grounded-floor gate -> draft -> verifier gate -> commit -> label -> push.
+
+    Sub-floor: emit status to dev_channel and return WITHOUT calling draft().
+    Verifier fail: call record_fail, emit status to dev_channel, return WITHOUT publishing.
+    Pass: commit(), label, push.
     """
+    # 1. Floor gate (unchanged)
     floor = evaluate_floor(sources)
     if not floor.passed:
         dev_channel.send(_status_message(floor, trace_id))
         return
-    body = await make_body()
-    labeled = apply_label(body)
+
+    # 2. Draft
+    bundle = await draft()
+
+    # 3. Verifier gate (hardcoded — not injectable, cannot be bypassed)
+    result = await verify(bundle.output, bundle.pool, judge=judge)
+    if not result.passed:
+        await record_fail(trace_id, result.violations)
+        dev_channel.send(_verify_status(result, trace_id))
+        return
+
+    # 4. Commit then publish
+    await bundle.commit()
+    labeled = apply_label(bundle.body)
     send_with_fallback(labeled, primary=primary, fallback=fallback, trace_id=trace_id)

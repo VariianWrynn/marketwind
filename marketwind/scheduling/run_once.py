@@ -12,6 +12,8 @@ from marketwind.scheduling.anchor import freshness_ok
 from marketwind.scout.calendar import is_trading_session
 from marketwind.scout.domain import Source
 from marketwind.scout.timeparse import CN_TZ
+from marketwind.verifier.domain import Violation
+from marketwind.writer.domain import DraftBundle
 
 _RUN_LOCK = asyncio.Lock()
 
@@ -30,7 +32,9 @@ async def run_once(now: datetime, *,
                    tolerance_min: int,
                    ceiling_cst: time,
                    gather: Callable[[], Awaitable[list[Source]]],
-                   make_body: Callable[[], Awaitable[str]],
+                   draft: Callable[[], Awaitable[DraftBundle]],
+                   judge: Callable[[str], Awaitable[str]],
+                   record_fail: Callable[[str, list[Violation]], Awaitable[None]],
                    primary: IMChannel,
                    fallback: IMChannel,
                    dev_channel: IMChannel,
@@ -46,6 +50,7 @@ async def run_once(now: datetime, *,
             dev_channel.send(_stale_status(reason, trace_id))
             return
         sources = await gather()
-        await run_pipeline(sources=sources, make_body=make_body,
+        await run_pipeline(sources=sources, draft=draft, judge=judge,
+                           record_fail=record_fail,
                            primary=primary, fallback=fallback,
                            dev_channel=dev_channel, trace_id=trace_id)
