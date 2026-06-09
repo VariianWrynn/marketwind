@@ -64,26 +64,29 @@ Mirrors the proven Writer package shape (pure core + injected LLM seam + thin li
 
 ## 5. The gate — `run_pipeline` integration
 
-The pipeline already owns the **floor** gate (calls `evaluate_floor`, decides publish/no-publish, sends a status message). The Verifier gate is **symmetric**:
+The pipeline already owns the **floor** gate — and it owns it by calling `evaluate_floor(sources)` **directly** (hardcoded), not via an injected seam. That is deliberate: a hardcoded gate cannot be stubbed away by a caller. The Verifier gate mirrors this exactly — `verify(...)` is **called directly inside `run_pipeline`**, so no caller (now or future) can wire a pipeline that skips it. This is what makes Law 5 *structural* rather than a convention:
 
 ```
 floor = evaluate_floor(sources)
 if not floor.passed:
     dev_channel.send(_floor_status(floor, trace_id)); return      # existing
-bundle = await draft()                  # Writer runs here (DeepSeek); returns (output, pool, body)
-result = await verify(bundle.output, bundle.pool)   # fresh Verifier pass — Law 5
+bundle = await draft()                  # Writer runs here (DeepSeek); returns (output, pool, body, commit)
+result = await verify(bundle.output, bundle.pool, judge=judge)    # HARDCODED fresh pass — Law 5
 if not result.passed:
-    await record_fail(result)           # persist violations to claim_failures
-    dev_channel.send(_verify_status(result, trace_id)); return    # NO publish
+    await record_fail(trace_id, result.violations)               # persist violations to claim_failures
+    dev_channel.send(_verify_status(result, trace_id)); return   # NO publish
+await bundle.commit()                   # persist claims+sentences only AFTER verify passes
 labeled = apply_label(bundle.body)
 send_with_fallback(labeled, primary=..., fallback=..., trace_id=trace_id)
 ```
 
 **Seam changes (surgical):**
-- `make_body: () -> Awaitable[str]` becomes `draft: () -> Awaitable[DraftBundle]`, where `DraftBundle = (output: WriterOutput, pool: list[PooledSource], body: str)`. `draft` stays **lazy** — a sub-floor shortfall still costs no Writer/DeepSeek call. Rendering the body is a pure string op; rendering before the gate (and discarding it on failure) is cheap and keeps the seam minimal (no separate `render` seam).
-- Two new injected seams: `verify: (WriterOutput, list[PooledSource]) -> Awaitable[VerifyResult]` and `record_fail: (VerifyResult) -> Awaitable[None]`.
+- `make_body: () -> Awaitable[str]` becomes `draft: () -> Awaitable[DraftBundle]`. `draft` stays **lazy** — a sub-floor shortfall still costs no Writer/DeepSeek call. Rendering the body is a pure string op; rendering before the gate (and discarding it on failure) is cheap.
+- `verify` is **not** an injected seam — it is imported and called directly (like `evaluate_floor`). The only things `run_pipeline` cannot compute itself are injected: `judge: Callable[[str], Awaitable[str]]` (the DeepSeek network seam Tier 2 needs) and `record_fail: (str, list[Violation]) -> Awaitable[None]` (claim_failures persistence; `run_pipeline` stays DB-free, matching how it takes no `conn` today).
 
-**Persistence timing (Law 5).** `persist_report` (writing claims + sentences) moves to **after** the Verifier passes. A report that fails verification is **never persisted or published** — only its violations land in `claim_failures`. The live `draft` wiring assembles + renders without persisting; persistence happens on the publish path.
+**`DraftBundle` (in `writer/domain.py`):** `output: WriterOutput`, `pool: list[PooledSource]`, `body: str`, `commit: Callable[[], Awaitable[str]]`. `commit` is a thunk that persists the report and returns its `report_id`; `run_pipeline` calls it **only after** `verify` passes. This orders persistence after verification with no extra seam and keeps `run_pipeline` DB-free.
+
+**Persistence timing (Law 5).** `persist_report` (claims + sentences) runs **only via `bundle.commit()`, after** the Verifier passes. A report that fails verification is **never persisted or published** — only its violations land in `claim_failures`.
 
 **Status message** (mirrors `_status_message`): `[MarketWind] verifier gate failed trace_id=… checks=RF-4,I3 (3 violations) — brief NOT published`.
 
