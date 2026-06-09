@@ -6,6 +6,7 @@ import asyncpg
 import uuid
 
 from marketwind.scout.domain import Source
+from marketwind.verifier.domain import Violation
 from marketwind.writer.domain import PooledQuote, PooledSource
 
 
@@ -118,3 +119,16 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 s.position,
             )
     return str(report_id)
+
+
+async def record_verifier_failures(
+    conn, trace_id: str, violations: list[Violation]
+) -> None:
+    """Insert one claim_failures row per Violation. No-op if violations is empty."""
+    if not violations:
+        return
+    await conn.executemany(
+        "insert into claim_failures (trace_id, check_name, locus, detail)"
+        " values ($1, $2, $3, $4);",
+        [(trace_id, v.check, v.locus, v.detail) for v in violations],
+    )
