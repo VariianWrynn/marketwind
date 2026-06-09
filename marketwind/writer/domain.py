@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 
@@ -67,3 +68,13 @@ class RenderedBrief:
     body: str                       # the joined ≤500-char brief
     sentences: list[RenderedSentence]   # kept sentences only (after over-length drop)
     footnotes: list[tuple[int, str]]    # (n, source_id) in assignment order
+
+
+# ---- Deferred-persistence bundle returned by draft_report ----
+
+@dataclass(frozen=True)
+class DraftBundle:
+    output: WriterOutput
+    pool: list[PooledSource]
+    body: str
+    commit: Callable[[], Awaitable[str]]   # zero-arg async thunk → report_id
