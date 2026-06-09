@@ -37,6 +37,7 @@ Following the get-shit-done (open-gsd/get-shit-done-redux) design logic and supe
 ### Approval gate (harness ↔ user)
 
 - **Phase plans require human approval; sub-agent launches do not.** Every phase plan (P1c, P2a, P2b, P3c, …) requires explicit user approval before implementation begins: the harness writes the plan, then **STOPS and waits**. **Once a plan is approved, sub-agent dispatches are pre-authorized** — the harness launches them (Sonnet, never Haiku) without seeking per-dispatch approval, and only returns to the user for a genuine blocker (a human-in-loop step like a credential/QR login, an ambiguous spec, or a request to overturn a locked decision).
+- **Subagent-Driven Development is the DEFAULT execution method — do not ask which approach to use.** Once a plan is approved, the harness executes it via superpowers' subagent-driven-development (fresh Sonnet sub-agent per task + two-stage review: spec-compliance then code-quality, verifying RED+GREEN evidence between tasks). Never offer "subagent vs inline" as a choice or pause to confirm the execution mode; just proceed. Inline execution is used only if the user explicitly asks for it.
 
 ---
 
