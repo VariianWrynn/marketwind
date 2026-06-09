@@ -4,11 +4,14 @@ from marketwind.writer.domain import PooledQuote, PooledSource
 from marketwind.writer.writer import assemble
 
 # Real ids that are clearly NOT aliases (not q1/q2/s1)
+_RAW_A = "科创50收涨0.36%。市场情绪偏谨慎。"
 POOL = [
     PooledSource("SRC-A", "https://m.cls.cn/a/1", "m.cls.cn", False, [
-        PooledQuote("QUO-1", "科创50收涨0.36%。", True, "data", "https://cninfo.com.cn/x"),
-        PooledQuote("QUO-2", "市场情绪偏谨慎。", False, "factual", None),
-    ]),
+        PooledQuote("QUO-1", "科创50收涨0.36%。", True, "data", "https://cninfo.com.cn/x",
+                    span_start=0, span_end=len("科创50收涨0.36%。")),
+        PooledQuote("QUO-2", "市场情绪偏谨慎。", False, "factual", None,
+                    span_start=len("科创50收涨0.36%。"), span_end=len(_RAW_A)),
+    ], raw_content=_RAW_A),
 ]
 
 

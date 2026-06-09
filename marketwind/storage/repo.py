@@ -6,6 +6,7 @@ import asyncpg
 import uuid
 
 from marketwind.scout.domain import Source
+from marketwind.verifier.domain import Violation
 from marketwind.writer.domain import PooledQuote, PooledSource
 
 
@@ -49,13 +50,14 @@ async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
 async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
     """Load the persisted quote pool with real DB UUIDs (Writer input)."""
     src_rows = await conn.fetch(
-        "select source_id, url, domain, is_primary from sources order by ingested_at;"
+        "select source_id, url, domain, is_primary, raw_content from sources order by ingested_at;"
     )
     pool: list[PooledSource] = []
     for s in src_rows:
         q_rows = await conn.fetch(
             """
-            select quote_id, text, is_quantitative, quote_type, attached_primary_url
+            select quote_id, text, is_quantitative, quote_type, attached_primary_url,
+                   span_start, span_end
             from quotes where source_id = $1 order by span_start;
             """,
             s["source_id"],
@@ -67,6 +69,8 @@ async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
                 is_quantitative=q["is_quantitative"],
                 quote_type=q["quote_type"],
                 attached_primary_url=q["attached_primary_url"],
+                span_start=q["span_start"],
+                span_end=q["span_end"],
             )
             for q in q_rows
         ]
@@ -77,6 +81,7 @@ async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
                 domain=s["domain"],
                 is_primary=s["is_primary"],
                 quotes=quotes,
+                raw_content=s["raw_content"],
             )
         )
     return pool
@@ -114,3 +119,16 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 s.position,
             )
     return str(report_id)
+
+
+async def record_verifier_failures(
+    conn, trace_id: str, violations: list[Violation]
+) -> None:
+    """Insert one claim_failures row per Violation. No-op if violations is empty."""
+    if not violations:
+        return
+    await conn.executemany(
+        "insert into claim_failures (trace_id, check_name, locus, detail)"
+        " values ($1, $2, $3, $4);",
+        [(trace_id, v.check, v.locus, v.detail) for v in violations],
+    )
