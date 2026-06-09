@@ -31,7 +31,13 @@ async def draft_report(conn, *, call: CallFn, max_chars: int = 500) -> DraftBund
 
 
 async def run_writer(conn, *, call: CallFn, max_chars: int = 500) -> tuple[str, str]:
-    """Returns (report_id, rendered brief body)."""
+    """Returns (report_id, rendered brief body).
+
+    WARNING — Law 5: this persists unconditionally (commit with no Verifier pass).
+    It is a writer-only convenience for tests/diagnostics and must NOT be wired
+    into the publication path. The live path is run_once -> run_pipeline, which
+    drafts lazily and commits only after verify() passes.
+    """
     bundle = await draft_report(conn, call=call, max_chars=max_chars)
     report_id = await bundle.commit()
     return report_id, bundle.body
