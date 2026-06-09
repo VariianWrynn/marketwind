@@ -64,16 +64,22 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
             pool = await gather_live(conn, now=now, prev_session=prev)
             return await enrich_primary_live(conn, pool, on_date=prev)
 
-        async def _make_body():
-            from marketwind.writer.client import call_deepseek
-            from marketwind.writer.runner import run_writer
-            _id, body = await run_writer(conn, call=call_deepseek)
-            return body
+        from marketwind.writer.client import call_deepseek
+        from marketwind.writer.runner import draft_report
+        from marketwind.verifier.runner import call_judge
+        from marketwind.storage.repo import record_verifier_failures
+
+        async def _draft():
+            return await draft_report(conn, call=call_deepseek)
+
+        async def _record_fail(trace_id, violations):
+            await record_verifier_failures(conn, trace_id, violations)
 
         hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
         await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
-                       ceiling_cst=time(hh, mm), gather=_gather, make_body=_make_body,
+                       ceiling_cst=time(hh, mm), gather=_gather,
+                       draft=_draft, judge=call_judge, record_fail=_record_fail,
                        primary=primary, fallback=fallback, dev_channel=dev,
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
                        force_calendar=args.force_calendar)
