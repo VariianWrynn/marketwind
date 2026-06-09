@@ -1,11 +1,14 @@
 from marketwind.writer.domain import PooledQuote, PooledSource
 from marketwind.writer.prompt import alias_pool, build_writer_prompt
 
+_RAW_AAA = "科创50收涨0.36%。市场情绪偏谨慎。"
 POOL = [
     PooledSource("SRC-AAA", "https://m.cls.cn/a/1", "m.cls.cn", False, [
-        PooledQuote("QUO-111", "科创50收涨0.36%。", True, "data", "https://cninfo.com.cn/x"),
-        PooledQuote("QUO-222", "市场情绪偏谨慎。", False, "factual", None),
-    ]),
+        PooledQuote("QUO-111", "科创50收涨0.36%。", True, "data", "https://cninfo.com.cn/x",
+                    span_start=0, span_end=len("科创50收涨0.36%。")),
+        PooledQuote("QUO-222", "市场情绪偏谨慎。", False, "factual", None,
+                    span_start=len("科创50收涨0.36%。"), span_end=len(_RAW_AAA)),
+    ], raw_content=_RAW_AAA),
 ]
 
 

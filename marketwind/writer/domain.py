@@ -14,6 +14,8 @@ class PooledQuote:
     is_quantitative: bool
     quote_type: str        # factual | quoted_inference | data
     attached_primary_url: str | None
+    span_start: int
+    span_end: int
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,7 @@ class PooledSource:
     domain: str
     is_primary: bool
     quotes: list[PooledQuote]
+    raw_content: str
 
 
 # ---- Output: what the Writer (DeepSeek) emits, after schema validation ----
