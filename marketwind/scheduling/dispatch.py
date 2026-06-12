@@ -1,6 +1,6 @@
 """Per-job anchor + tolerance resolution (P2b item A).
 
-Later tasks in P2b will add catch_up to this file.
+catch_up added in Task 9 P2b: boot-time backward reconciliation.
 """
 from __future__ import annotations
 
@@ -202,3 +202,91 @@ async def dispatch_job(
         send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
 
     return outcome
+
+
+async def catch_up(
+    *,
+    now,
+    conn,
+    sessions,
+    premarket_tol_min,
+    main_tol_min,
+    ceiling_cst,
+    gather,
+    draft,
+    judge,
+    record_fail,
+    primary,
+    fallback,
+    trace_id,
+    retries,
+    backoff_s,
+    window: int = 5,
+) -> list[RunOutcome]:
+    """Boot-time backward reconciliation (Task 9 P2b).
+
+    Reconciles the last `window` trading dates so a multi-day outage produces
+    a missed ledger row PER ABSENT DAY (not one misleading row).
+
+    - A date already terminal in the ledger → skip (idempotent).
+    - today with no row → delegate to dispatch_job(..., trigger="boot", ...).
+    - Any PAST trading date with no row → write a missed row directly + owner page.
+    """
+    today = now.astimezone(CN_TZ).date()
+    wdates = sorted(d for d in sessions if d <= today)[-window:]
+
+    outcomes: list[RunOutcome] = []
+
+    for job_id in ("premarket", "main"):
+        for d in wdates:
+            existing = await get_run_status(conn, job_id=job_id, trading_date=d)
+            if existing is not None:
+                # Already terminal — skip (idempotent)
+                continue
+            elif d == today:
+                # Delegate today's run to dispatch_job (handles window/stale relabeling)
+                outcome = await dispatch_job(
+                    job_id,
+                    now=now,
+                    conn=conn,
+                    sessions=sessions,
+                    trigger="boot",
+                    premarket_tol_min=premarket_tol_min,
+                    main_tol_min=main_tol_min,
+                    ceiling_cst=ceiling_cst,
+                    gather=gather,
+                    draft=draft,
+                    judge=judge,
+                    record_fail=record_fail,
+                    primary=primary,
+                    fallback=fallback,
+                    trace_id=trace_id,
+                    retries=retries,
+                    backoff_s=backoff_s,
+                )
+                outcomes.append(outcome)
+            else:
+                # Past date with no row — write missed directly (window is closed)
+                await record_run(
+                    conn,
+                    job_id=job_id,
+                    trading_date=d,
+                    status=MISSED,
+                    trace_id=trace_id,
+                    detail="boot reconcile: window closed unrun",
+                )
+                # Build a minimal plan so _status_text can render the owner message
+                plan = resolve_job(
+                    job_id,
+                    datetime(d.year, d.month, d.day, 12, 0, tzinfo=CN_TZ),
+                    premarket_tol_min=premarket_tol_min,
+                    main_tol_min=main_tol_min,
+                    ceiling_cst=ceiling_cst,
+                )
+                outcome = RunOutcome(MISSED, detail="boot reconcile: window closed unrun")
+                text = _status_text(outcome, plan, trace_id)
+                if text is not None:
+                    send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
+                outcomes.append(outcome)
+
+    return outcomes
