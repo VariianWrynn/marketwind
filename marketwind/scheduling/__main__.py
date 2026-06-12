@@ -108,62 +108,71 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     primary, fallback = build_channels(live)
 
     conn = await asyncpg.connect(settings.database_url)
-    sessions = list(_load_sessions())
-    now = datetime.now(timezone.utc)
-    hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
-    ceiling = time(hh, mm)
-    prev = live_prev_trading_session(now.date())
+    try:
+        sessions = list(_load_sessions())
+        now = datetime.now(timezone.utc)
+        hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
+        ceiling = time(hh, mm)
+        prev = live_prev_trading_session(now.date())
 
-    assert_timing_safe(
-        misfire_grace_s=settings.misfire_grace_s,
-        max_transient_retries=settings.max_transient_retries,
-        backoff_ceiling_s=settings.backoff_ceiling_s,
-        tolerance_min=settings.main_tolerance_min,
-    )
+        assert_timing_safe(
+            misfire_grace_s=settings.misfire_grace_s,
+            max_transient_retries=settings.max_transient_retries,
+            backoff_ceiling_s=settings.backoff_ceiling_s,
+            tolerance_min=settings.main_tolerance_min,
+        )
 
-    async def _gather():
-        pool = await gather_live(conn, now=now, prev_session=prev)
-        return await enrich_primary_live(conn, pool, on_date=prev)
+        # _gather takes the gather instant + prev session explicitly so each cron
+        # fire pulls *that day's* data. Capturing boot-time now/prev in the closure
+        # would make a long-running daemon serve stale boot-day data — a freshness
+        # violation (CLAUDE.md §7: never pass yesterday's data off as today's).
+        async def _gather(g_now, g_prev):
+            pool = await gather_live(conn, now=g_now, prev_session=g_prev)
+            return await enrich_primary_live(conn, pool, on_date=g_prev)
 
-    async def _draft():
-        return await draft_report(conn, call=call_deepseek)
+        async def _draft():
+            return await draft_report(conn, call=call_deepseek)
 
-    async def _record_fail(trace_id, violations):
-        await record_verifier_failures(conn, trace_id, violations)
+        async def _record_fail(trace_id, violations):
+            await record_verifier_failures(conn, trace_id, violations)
 
-    await catch_up(
-        now=now, conn=conn, sessions=sessions,
-        premarket_tol_min=settings.premarket_tolerance_min,
-        main_tol_min=settings.main_tolerance_min,
-        ceiling_cst=ceiling,
-        gather=_gather, draft=_draft, judge=call_judge, record_fail=_record_fail,
-        primary=primary, fallback=fallback,
-        trace_id=f"boot-{now:%Y%m%dT%H%M%S}",
-        retries=settings.max_transient_retries,
-        backoff_s=settings.backoff_ceiling_s,
-        window=5,
-    )
-
-    async def _dispatch(job_id: str) -> None:
-        await dispatch_job(
-            job_id,
-            now=datetime.now(timezone.utc),
-            conn=conn,
-            sessions=sessions,
-            trigger="cron",
+        # Boot reconciliation: boot-time now/prev is correct here.
+        await catch_up(
+            now=now, conn=conn, sessions=sessions,
             premarket_tol_min=settings.premarket_tolerance_min,
             main_tol_min=settings.main_tolerance_min,
             ceiling_cst=ceiling,
-            gather=_gather, draft=_draft, judge=call_judge, record_fail=_record_fail,
+            gather=lambda: _gather(now, prev), draft=_draft, judge=call_judge,
+            record_fail=_record_fail,
             primary=primary, fallback=fallback,
-            trace_id=f"cron-{job_id}-{datetime.now(timezone.utc):%Y%m%dT%H%M%S}",
+            trace_id=f"boot-{now:%Y%m%dT%H%M%S}",
             retries=settings.max_transient_retries,
             backoff_s=settings.backoff_ceiling_s,
+            window=5,
         )
 
-    sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=settings.misfire_grace_s)
-    sched.start()
-    try:
+        async def _dispatch(job_id: str) -> None:
+            fire_now = datetime.now(timezone.utc)
+            fire_prev = live_prev_trading_session(fire_now.date())
+            await dispatch_job(
+                job_id,
+                now=fire_now,
+                conn=conn,
+                sessions=sessions,
+                trigger="cron",
+                premarket_tol_min=settings.premarket_tolerance_min,
+                main_tol_min=settings.main_tolerance_min,
+                ceiling_cst=ceiling,
+                gather=lambda: _gather(fire_now, fire_prev), draft=_draft,
+                judge=call_judge, record_fail=_record_fail,
+                primary=primary, fallback=fallback,
+                trace_id=f"cron-{job_id}-{fire_now:%Y%m%dT%H%M%S}",
+                retries=settings.max_transient_retries,
+                backoff_s=settings.backoff_ceiling_s,
+            )
+
+        sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=settings.misfire_grace_s)
+        sched.start()
         await asyncio.Event().wait()
     finally:
         await conn.close()

@@ -25,6 +25,11 @@ def test_build_scheduler_registers_two_jobs_with_grace():
     assert set(jobs) == {"premarket", "main"}
     assert jobs["premarket"].misfire_grace_time == 900
     assert jobs["main"].misfire_grace_time == 900
+    # overrun protection: at most one live instance, collapse a backlog to one fire.
+    assert jobs["premarket"].max_instances == 1
+    assert jobs["main"].max_instances == 1
+    assert jobs["premarket"].coalesce is True
+    assert jobs["main"].coalesce is True
 
 
 def test_each_job_registered_with_its_own_job_id():
