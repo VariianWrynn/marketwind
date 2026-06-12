@@ -4,6 +4,7 @@ Later tasks in P2b will add catch_up to this file.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
@@ -22,6 +23,13 @@ from marketwind.scheduling.run_once import run_once
 from marketwind.storage.repo import record_run, get_run_status
 from marketwind.orchestration.runner import send_with_fallback
 from marketwind.scout.timeparse import CN_TZ
+
+# Exceptions treated as transient infrastructure failures — eligible for retry.
+# RuntimeError is included because send_with_fallback raises RuntimeError when
+# both IM channels fail, which is a transient infra problem worth retrying.
+# Note: asyncpg.PostgresConnectionError is intentionally omitted to avoid a
+# hard import dependency on asyncpg; callers may add it if asyncpg is available.
+_TRANSIENT = (ConnectionError, TimeoutError, asyncio.TimeoutError, OSError, RuntimeError)
 
 
 @dataclass(frozen=True)
@@ -137,22 +145,41 @@ async def dispatch_job(
             await get_run_status(conn, job_id=job_id, trading_date=plan.trading_date)
         ) == PUBLISHED
 
-    # --- Run (no retry loop yet — Task 8 adds that) ---
-    outcome = await run_once(
-        now,
-        sessions=sessions,
-        anchor=plan.anchor,
-        tolerance_min=plan.tolerance_min,
-        ceiling_cst=plan.ceiling_cst,
-        gather=gather,
-        draft=draft,
-        judge=judge,
-        record_fail=record_fail,
-        already_published=_already,
-        primary=primary,
-        fallback=fallback,
-        trace_id=trace_id,
-    )
+    # --- Retry loop (Task 8) ---
+    # Only one retry loop exists here; the send failover inside send_with_fallback
+    # is bounded and loop-free, so the existing single-budget assert_timing_safe(...)
+    # in scheduler.py already bounds the timing.  This is a deliberate, flagged
+    # decision — do not "fix" assert_timing_safe.
+    outcome: RunOutcome  # assigned inside the loop before break
+    for attempt in range(retries + 1):
+        try:
+            outcome = await run_once(
+                now,
+                sessions=sessions,
+                anchor=plan.anchor,
+                tolerance_min=plan.tolerance_min,
+                ceiling_cst=plan.ceiling_cst,
+                gather=gather,
+                draft=draft,
+                judge=judge,
+                record_fail=record_fail,
+                already_published=_already,
+                primary=primary,
+                fallback=fallback,
+                trace_id=trace_id,
+            )
+            break  # success — exit the retry loop
+        except _TRANSIENT as e:
+            if attempt < retries:
+                await asyncio.sleep(backoff_s)
+            else:
+                # Retries exhausted — escalate to FAILED_INFRA for durable record + loud page
+                outcome = RunOutcome(FAILED_INFRA, detail=f"{type(e).__name__}: {e}")
+                break
+        except Exception as e:
+            # Unknown / non-transient exception — fail closed immediately; likely a bug
+            outcome = RunOutcome(FAILED_INFRA, detail=f"{type(e).__name__}: {e}")
+            break
 
     # --- boot + stale → missed relabel ---
     if trigger == "boot" and outcome.status == SKIPPED_STALE:
