@@ -19,6 +19,7 @@ from marketwind.scheduling.outcome import (
     MISSED,
     FAILED_INFRA,
 )
+from marketwind.gateway.im.label import DEV_PREFIX
 from marketwind.scheduling.run_once import run_once
 from marketwind.storage.repo import record_run, get_run_status
 from marketwind.orchestration.runner import send_with_fallback
@@ -118,6 +119,7 @@ async def dispatch_job(
     trace_id: str,
     retries: int,
     backoff_s: float,
+    label_prefix: str = DEV_PREFIX,
 ) -> RunOutcome:
     """Single entry point for cron and boot dispatchers.
 
@@ -171,6 +173,7 @@ async def dispatch_job(
                 primary=primary,
                 fallback=fallback,
                 trace_id=trace_id,
+                label_prefix=label_prefix,
             )
             break  # success — exit the retry loop
         except _TRANSIENT as e:
@@ -229,6 +232,7 @@ async def catch_up(
     retries,
     backoff_s,
     window: int = 5,
+    label_prefix: str = DEV_PREFIX,
 ) -> list[RunOutcome]:
     """Boot-time backward reconciliation (Task 9 P2b).
 
@@ -270,6 +274,7 @@ async def catch_up(
                     trace_id=trace_id,
                     retries=retries,
                     backoff_s=backoff_s,
+                    label_prefix=label_prefix,
                 )
                 outcomes.append(outcome)
             else:

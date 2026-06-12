@@ -96,6 +96,8 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
     from marketwind.scout.gather import gather_live
     from marketwind.scout.enrich import enrich_primary_live
 
+    from marketwind.gateway.im.label import DEV_PREFIX
+
     args = build_parser().parse_args(argv)
     now = datetime.now(timezone.utc)
     sessions = list(_load_sessions())
@@ -126,13 +128,15 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
             await record_verifier_failures(conn, trace_id, violations)
 
         hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
+        label_prefix = DEV_PREFIX if settings.report_dev_label else ""
         await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
                        ceiling_cst=time(hh, mm), gather=_gather,
                        draft=_draft, judge=call_judge, record_fail=_record_fail,
                        primary=primary, fallback=fallback,
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
-                       force_calendar=args.force_calendar)
+                       force_calendar=args.force_calendar,
+                       label_prefix=label_prefix)
     finally:
         await conn.close()
 
@@ -154,6 +158,8 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     from marketwind.writer.runner import draft_report
     from marketwind.verifier.runner import call_judge
     from marketwind.storage.repo import record_verifier_failures
+
+    from marketwind.gateway.im.label import DEV_PREFIX
 
     # ADR-0002: WeChat (hermes) is the unattended PRIMARY; WeCom-webhook is the backup.
     live = settings.model_copy(update={"im_channel": "hermes_weixin"})
@@ -188,6 +194,8 @@ async def run_scheduler() -> None:  # pragma: no cover - live
         async def _record_fail(trace_id, violations):
             await record_verifier_failures(conn, trace_id, violations)
 
+        label_prefix = DEV_PREFIX if settings.report_dev_label else ""
+
         # Boot reconciliation: boot-time now/prev is correct here.
         await catch_up(
             now=now, conn=conn, sessions=sessions,
@@ -201,6 +209,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             retries=settings.max_transient_retries,
             backoff_s=settings.backoff_ceiling_s,
             window=5,
+            label_prefix=label_prefix,
         )
 
         async def _dispatch(job_id: str) -> None:
@@ -221,6 +230,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
                 trace_id=f"cron-{job_id}-{fire_now:%Y%m%dT%H%M%S}",
                 retries=settings.max_transient_retries,
                 backoff_s=settings.backoff_ceiling_s,
+                label_prefix=label_prefix,
             )
 
         sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=settings.misfire_grace_s)

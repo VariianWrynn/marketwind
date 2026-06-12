@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, time
 
 from marketwind.gateway.im.base import IMChannel
+from marketwind.gateway.im.label import DEV_PREFIX
 from marketwind.orchestration.runner import run_pipeline
 from marketwind.scheduling.anchor import freshness_ok
 from marketwind.scheduling.outcome import RunOutcome, SKIPPED_CALENDAR, SKIPPED_STALE
@@ -32,7 +33,8 @@ async def run_once(now: datetime, *,
                    primary: IMChannel,
                    fallback: IMChannel,
                    trace_id: str,
-                   force_calendar: bool = False) -> RunOutcome:
+                   force_calendar: bool = False,
+                   label_prefix: str = DEV_PREFIX) -> RunOutcome:
     async with _RUN_LOCK:
         if not force_calendar and not is_trading_session(now.astimezone(CN_TZ).date(), sessions):
             return RunOutcome(SKIPPED_CALENDAR)
@@ -45,4 +47,5 @@ async def run_once(now: datetime, *,
                                   record_fail=record_fail,
                                   already_published=already_published,
                                   primary=primary, fallback=fallback,
-                                  trace_id=trace_id)
+                                  trace_id=trace_id,
+                                  label_prefix=label_prefix)

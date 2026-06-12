@@ -26,3 +26,18 @@ def test_overlong_body_raises_not_truncates():
     # A body exceeding the reserved budget is a caller bug; fail closed.
     with pytest.raises(ValueError, match="exceeds"):
         apply_label("字" * (BODY_BUDGET + 1))
+
+
+def test_empty_prefix_drops_dev_label():
+    out = apply_label("正文。[1]", prefix="")
+    assert not out.startswith(DEV_PREFIX)
+    assert out == "正文。[1]"
+
+
+def test_empty_prefix_allows_full_500_body():
+    out = apply_label("字" * MAX_TOTAL, prefix="")
+    assert len(out) == MAX_TOTAL
+
+
+def test_default_prefix_unchanged():
+    assert apply_label("正文").startswith(DEV_PREFIX)

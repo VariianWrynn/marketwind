@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from marketwind.gateway.im.base import IMChannel, SendResult
-from marketwind.gateway.im.label import apply_label
+from marketwind.gateway.im.label import DEV_PREFIX, apply_label
 from marketwind.scheduling.outcome import PUBLISHED, SUB_FLOOR, VERIFY_FAIL, RunOutcome
 from marketwind.scout.domain import Source
 from marketwind.scout.runner import evaluate_floor
@@ -35,6 +35,7 @@ async def run_pipeline(
     primary: IMChannel,
     fallback: IMChannel,
     trace_id: str,
+    label_prefix: str = DEV_PREFIX,
 ) -> RunOutcome:
     """Grounded-floor gate -> draft -> verifier gate -> check-before-send -> commit -> label -> push.
 
@@ -71,6 +72,6 @@ async def run_pipeline(
 
     # 5. Commit then publish (Law-5 ordering: persist before push)
     await bundle.commit()
-    labeled = apply_label(bundle.body)
+    labeled = apply_label(bundle.body, prefix=label_prefix)
     send_with_fallback(labeled, primary=primary, fallback=fallback, trace_id=trace_id)
     return RunOutcome(PUBLISHED)

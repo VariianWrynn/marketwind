@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # IM push (P1c). Channel selection: "stub" | "hermes_weixin" | "wecom_webhook"
     im_channel: str = "stub"
+    report_dev_label: bool = True  # G0.4: prepend DEV/UNVERIFIED prefix; set False in prod
     weixin_account_id: str | None = None
     weixin_token: str | None = None
     wecom_webhook_url: str | None = None
