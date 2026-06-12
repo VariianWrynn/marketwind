@@ -25,10 +25,10 @@ def assert_timing_safe(*, misfire_grace_s: int, max_transient_retries: int,
         )
 
 
-def build_scheduler(*, run: Callable[[], Awaitable[None]], misfire_grace_s: int) -> AsyncIOScheduler:
+def build_scheduler(*, dispatch: Callable[[str], Awaitable[None]], misfire_grace_s: int) -> AsyncIOScheduler:
     sched = AsyncIOScheduler()
     for job in (_PREMARKET, _MAIN):
-        sched.add_job(run, trigger=job.to_apscheduler(), id=job.job_id,
-                      misfire_grace_time=misfire_grace_s, max_instances=1,
-                      coalesce=True)
+        sched.add_job(dispatch, args=[job.job_id], trigger=job.to_apscheduler(),
+                      id=job.job_id, misfire_grace_time=misfire_grace_s,
+                      max_instances=1, coalesce=True)
     return sched
