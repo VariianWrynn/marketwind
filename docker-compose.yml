@@ -35,3 +35,29 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # scheduler — restart-durable autonomous daemon (pre-market + 07:00 cron).
+  # Default: in-container send; requires `hermes` CLI on image PATH + ro creds mount below.
+  # Fallback (Windows Docker Desktop if hermes won't containerize):
+  #   run as HOST process: PYTHONPATH=. .venv/Scripts/python.exe -m marketwind.scheduling --scheduler
+  #   point DATABASE_URL at localhost:5432 (published port); host hermes already logged in.
+  # Final verdict (in-container vs host) deferred to smoke Stage 3 (owner-run, live).
+  scheduler:
+    build: .
+    command: ["python", "-m", "marketwind.scheduling", "--scheduler"]
+    environment:
+      DATABASE_URL: postgresql://marketwind:marketwind@postgres:5432/marketwind
+      REDIS_URL: redis://redis:6379/0
+      IM_CHANNEL: hermes_weixin
+      HERMES_BIN: ${HERMES_BIN:-hermes}
+      WEIXIN_TARGET: ${WEIXIN_TARGET:-weixin}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      BOCHA_API_KEY: ${BOCHA_API_KEY:-}
+      REPORT_DEV_LABEL: ${REPORT_DEV_LABEL:-true}
+    volumes:
+      - ${HERMES_HOST_DIR:-./hermes-creds}:/root/.hermes:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
