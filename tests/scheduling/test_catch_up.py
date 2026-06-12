@@ -19,27 +19,29 @@ from marketwind.scout.timeparse import CN_TZ
 # Fixed test fixtures
 # ---------------------------------------------------------------------------
 
-# "now" is a Tuesday 06:00 CST — well into trading day
+# "now" resolves to Wednesday 2026-06-10 06:30 CST — well into the trading day.
 _NOW = datetime(2026, 6, 9, 22, 30, tzinfo=timezone.utc)  # 2026-06-10 06:30 CST
 _TODAY = _NOW.astimezone(CN_TZ).date()  # 2026-06-10
 
-# Five trading dates: today + 4 prior (Mon–Fri, skipping weekend)
-# 2026-06-10 (Tue), 2026-06-09 (Mon), 2026-06-06 (Fri), 2026-06-05 (Thu), 2026-06-04 (Wed)
+# Five genuine weekday trading sessions: today + 4 prior (the 06-06/06-07 weekend
+# is skipped, as a real trading calendar would).
+# 06-04 (Thu), 06-05 (Fri), 06-08 (Mon), 06-09 (Tue), 06-10 (Wed, today)
 _SESSIONS_5 = [
     date(2026, 6, 4),
     date(2026, 6, 5),
-    date(2026, 6, 6),
+    date(2026, 6, 8),
     date(2026, 6, 9),
     date(2026, 6, 10),
 ]
 
-# Seven trading dates: today + 6 prior (for window-bound test)
+# Seven genuine weekday trading sessions: today + 6 prior (for the window-bound test).
+# 06-02 (Tue), 06-03 (Wed), 06-04 (Thu), 06-05 (Fri), 06-08 (Mon), 06-09 (Tue), 06-10 (Wed)
 _SESSIONS_7 = [
     date(2026, 6, 2),
     date(2026, 6, 3),
     date(2026, 6, 4),
     date(2026, 6, 5),
-    date(2026, 6, 6),
+    date(2026, 6, 8),
     date(2026, 6, 9),
     date(2026, 6, 10),
 ]
@@ -202,3 +204,43 @@ async def test_only_last_5_sessions_considered(monkeypatch):
         f"expected oldest 2 dates to be outside window and untouched; "
         f"but found {in_recorded} in recorded dates {recorded_dates!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 4: today already has a ledger row → not re-dispatched, no new row
+# ---------------------------------------------------------------------------
+
+async def test_today_already_recorded_is_not_redispatched(monkeypatch):
+    """Pre-seed both jobs for today as published.
+
+    catch_up must skip today via the idempotent guard: dispatch_job is never
+    called and no row is written for today.
+    """
+    pre_seeded = {
+        ("premarket", _TODAY): "published",
+        ("main", _TODAY): "published",
+    }
+    _, recorded, fake_get, fake_record = _make_ledger(pre_seeded)
+
+    dispatch_calls: list = []
+
+    async def stub_dispatch_job(job_id, *, now, conn, sessions, trigger, **kwargs):
+        dispatch_calls.append(job_id)
+        return RunOutcome(PUBLISHED)
+
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.dispatch_job", stub_dispatch_job)
+
+    await catch_up(
+        sessions=_SESSIONS_5,
+        primary=StubSink(),
+        fallback=StubSink(),
+        **_COMMON_KWARGS,
+    )
+
+    assert dispatch_calls == [], (
+        f"expected no dispatch for an already-recorded today; got {dispatch_calls!r}"
+    )
+    today_rows = [r for r in recorded if r[1] == _TODAY]
+    assert today_rows == [], f"expected no new row for today; got {today_rows!r}"

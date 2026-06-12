@@ -31,6 +31,9 @@ from marketwind.scout.timeparse import CN_TZ
 # hard import dependency on asyncpg; callers may add it if asyncpg is available.
 _TRANSIENT = (ConnectionError, TimeoutError, asyncio.TimeoutError, OSError, RuntimeError)
 
+# Detail recorded + surfaced when boot catch-up reconciles a past, never-run window.
+_BOOT_RECONCILE_DETAIL = "boot reconcile: window closed unrun"
+
 
 @dataclass(frozen=True)
 class JobPlan:
@@ -273,9 +276,12 @@ async def catch_up(
                     trading_date=d,
                     status=MISSED,
                     trace_id=trace_id,
-                    detail="boot reconcile: window closed unrun",
+                    detail=_BOOT_RECONCILE_DETAIL,
                 )
-                # Build a minimal plan so _status_text can render the owner message
+                # Build a plan only so _status_text can render the owner message.
+                # For a MISSED outcome _status_text uses only job_id/trading_date
+                # (via detail+trace_id); the noon-CST anchor is arbitrary — it just
+                # makes resolve_job derive trading_date == d.
                 plan = resolve_job(
                     job_id,
                     datetime(d.year, d.month, d.day, 12, 0, tzinfo=CN_TZ),
@@ -283,7 +289,7 @@ async def catch_up(
                     main_tol_min=main_tol_min,
                     ceiling_cst=ceiling_cst,
                 )
-                outcome = RunOutcome(MISSED, detail="boot reconcile: window closed unrun")
+                outcome = RunOutcome(MISSED, detail=_BOOT_RECONCILE_DETAIL)
                 text = _status_text(outcome, plan, trace_id)
                 if text is not None:
                     send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
