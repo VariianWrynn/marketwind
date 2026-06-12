@@ -121,7 +121,8 @@ async def dispatch_job(
     1. Resolve the job plan (anchor, tolerance, trading_date).
     2. No-op guard: if ledger already has a terminal row, return it unchanged
        (no new row, no message).
-    3. Run run_once directly (retry loop added in Task 8).
+    3. Run run_once with transient-retry (retries+1 attempts, flat backoff_s);
+       exhausted transient or any unknown error escalates to FAILED_INFRA.
     4. Boot + SKIPPED_STALE → relabel to MISSED.
     5. Record-then-send: write the ledger row BEFORE sending any message.
     6. Send status message if applicable (PUBLISHED is silent).

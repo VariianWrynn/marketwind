@@ -105,7 +105,11 @@ async def test_exhausted_retries_become_failed_infra_and_page(monkeypatch):
     dispatch_job should return failed_infra, write it to the ledger, and
     send a message containing '基础设施失败'."""
 
+    call_count = 0
+
     async def stub_run_once(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
         raise TimeoutError("upstream timeout")
 
     _, recorded, fake_get, fake_record = _make_ledger()
@@ -123,6 +127,7 @@ async def test_exhausted_retries_become_failed_infra_and_page(monkeypatch):
     )
 
     assert out.status == "failed_infra", f"expected failed_infra, got {out.status!r}"
+    assert call_count == 3, f"expected 3 attempts (retries=2), got {call_count}"
     assert recorded, "expected a ledger row to be written"
     assert recorded[0][2] == "failed_infra", (
         f"expected ledger row status 'failed_infra', got {recorded[0][2]!r}"
