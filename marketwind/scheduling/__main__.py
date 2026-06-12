@@ -21,7 +21,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --force-calendar, actually send instead of dry-run")
     p.add_argument("--floor-only", action="store_true",
                    help="probe the grounded floor and exit; burns zero DeepSeek tokens")
+    p.add_argument("--scheduler", action="store_true",
+                   help="run the persistent scheduler daemon")
     return p
+
+
+def want_scheduler(args: argparse.Namespace) -> bool:
+    return args.scheduler
 
 
 def floor_line(result: FloorResult) -> str:
@@ -149,7 +155,8 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     from marketwind.verifier.runner import call_judge
     from marketwind.storage.repo import record_verifier_failures
 
-    live = settings.model_copy(update={"im_channel": "wecom_webhook"})
+    # ADR-0002: WeChat (hermes) is the unattended PRIMARY; WeCom-webhook is the backup.
+    live = settings.model_copy(update={"im_channel": "hermes_weixin"})
     primary, fallback = build_channels(live)
 
     conn = await asyncpg.connect(settings.database_url)
@@ -228,4 +235,7 @@ if __name__ == "__main__":  # pragma: no cover
     _args = build_parser().parse_args()
     if _args.floor_only:
         raise SystemExit(asyncio.run(floor_probe()))
-    asyncio.run(main())
+    elif want_scheduler(_args):
+        asyncio.run(run_scheduler())
+    else:
+        asyncio.run(main())

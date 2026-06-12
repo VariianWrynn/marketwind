@@ -1,6 +1,6 @@
 # tests/scheduling/test_entrypoint.py
 from marketwind.scout.domain import FloorResult
-from marketwind.scheduling.__main__ import build_parser, want_real_send, floor_line, floor_exit_code
+from marketwind.scheduling.__main__ import build_parser, want_real_send, floor_line, floor_exit_code, want_scheduler
 
 
 def _parse(argv):
@@ -44,3 +44,11 @@ def test_exit_code_zero_on_pass_nonzero_on_subfloor():
     bad = FloorResult(grounded_quotes=3, primary_traced_quotes=0, independent_outlets=1, passed=False)
     assert floor_exit_code(ok) == 0
     assert floor_exit_code(bad) != 0
+
+
+def test_scheduler_flag_routes_to_daemon():
+    assert want_scheduler(_parse(["--scheduler"])) is True
+
+
+def test_absent_scheduler_flag_is_false():
+    assert want_scheduler(_parse([])) is False
