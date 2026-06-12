@@ -57,6 +57,10 @@ async def _persist_noop(_src):
     return None
 
 
+async def _never() -> bool:
+    return False
+
+
 async def _fake_judge(prompt: str) -> str:
     return '{"violations": []}'
 
@@ -110,7 +114,7 @@ def _make_draft_fn(draft_calls: list):
 
 
 async def test_full_chain_publishes_labeled_brief_when_floor_clears():
-    primary, dev, draft_calls = StubSink(), StubSink(), []
+    primary, draft_calls = StubSink(), []
 
     async def _gather():
         return await build_pool(prev_session=_PREV, search=_search_two_outlets(None),
@@ -120,21 +124,22 @@ async def test_full_chain_publishes_labeled_brief_when_floor_clears():
     async def _noop_record_fail(trace_id, violations):
         pass
 
-    await run_once(_NOW, sessions=_SESSIONS, anchor=_ANCHOR, tolerance_min=90,
-                   ceiling_cst=_CEIL, gather=_gather,
-                   draft=_make_draft_fn(draft_calls),
-                   judge=_fake_judge,
-                   record_fail=_noop_record_fail,
-                   primary=primary, fallback=StubSink(), dev_channel=dev,
-                   trace_id="integ", force_calendar=False)
+    out = await run_once(_NOW, sessions=_SESSIONS, anchor=_ANCHOR, tolerance_min=90,
+                         ceiling_cst=_CEIL, gather=_gather,
+                         draft=_make_draft_fn(draft_calls),
+                         judge=_fake_judge,
+                         record_fail=_noop_record_fail,
+                         already_published=_never,
+                         primary=primary, fallback=StubSink(),
+                         trace_id="integ", force_calendar=False)
 
+    assert out.status == "published"
     assert draft_calls == [1]                                 # Writer ran
     assert primary.sent and primary.sent[0].startswith("【DEV / UNVERIFIED")
-    assert dev.sent == []                                     # no shortfall status
 
 
 async def test_full_chain_routes_sub_floor_status_when_pool_thin():
-    primary, dev, draft_calls = StubSink(), StubSink(), []
+    primary, draft_calls = StubSink(), []
 
     async def _gather():
         return await build_pool(prev_session=_PREV, search=_search_two_outlets(None),
@@ -144,14 +149,16 @@ async def test_full_chain_routes_sub_floor_status_when_pool_thin():
     async def _noop_record_fail(trace_id, violations):
         pass
 
-    await run_once(_NOW, sessions=_SESSIONS, anchor=_ANCHOR, tolerance_min=90,
-                   ceiling_cst=_CEIL, gather=_gather,
-                   draft=_make_draft_fn(draft_calls),
-                   judge=_fake_judge,
-                   record_fail=_noop_record_fail,
-                   primary=primary, fallback=StubSink(), dev_channel=dev,
-                   trace_id="integ", force_calendar=False)
+    out = await run_once(_NOW, sessions=_SESSIONS, anchor=_ANCHOR, tolerance_min=90,
+                         ceiling_cst=_CEIL, gather=_gather,
+                         draft=_make_draft_fn(draft_calls),
+                         judge=_fake_judge,
+                         record_fail=_noop_record_fail,
+                         already_published=_never,
+                         primary=primary, fallback=StubSink(),
+                         trace_id="integ", force_calendar=False)
 
+    assert out.status == "sub_floor"
+    assert out.detail                                         # reason is non-empty
     assert draft_calls == []                                  # Writer NEVER ran
     assert primary.sent == []                                 # nothing published
-    assert dev.sent and "sub-floor" in dev.sent[0]
