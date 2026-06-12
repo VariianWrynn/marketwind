@@ -6,9 +6,9 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime, time
 
-from marketwind.gateway.im.base import IMChannel
 from marketwind.orchestration.runner import run_pipeline
 from marketwind.scheduling.anchor import freshness_ok
+from marketwind.scheduling.outcome import RunOutcome, SKIPPED_CALENDAR, SKIPPED_STALE
 from marketwind.scout.calendar import is_trading_session
 from marketwind.scout.domain import Source
 from marketwind.scout.timeparse import CN_TZ
@@ -16,14 +16,6 @@ from marketwind.verifier.domain import Violation
 from marketwind.writer.domain import DraftBundle
 
 _RUN_LOCK = asyncio.Lock()
-
-
-def _nontrading_status(now: datetime, trace_id: str) -> str:
-    return f"[MarketWind] {now.astimezone(CN_TZ):%Y-%m-%d} 非交易日，跳过 trace_id={trace_id}"
-
-
-def _stale_status(reason: str, trace_id: str) -> str:
-    return f"[MarketWind] 简报超时跳过 trace_id={trace_id}: {reason}"
 
 
 async def run_once(now: datetime, *,
@@ -35,22 +27,21 @@ async def run_once(now: datetime, *,
                    draft: Callable[[], Awaitable[DraftBundle]],
                    judge: Callable[[str], Awaitable[str]],
                    record_fail: Callable[[str, list[Violation]], Awaitable[None]],
-                   primary: IMChannel,
-                   fallback: IMChannel,
-                   dev_channel: IMChannel,
+                   already_published: Callable[[], Awaitable[bool]],
+                   primary,
+                   fallback,
                    trace_id: str,
-                   force_calendar: bool = False) -> None:
+                   force_calendar: bool = False) -> RunOutcome:
     async with _RUN_LOCK:
         if not force_calendar and not is_trading_session(now.astimezone(CN_TZ).date(), sessions):
-            dev_channel.send(_nontrading_status(now, trace_id))
-            return
+            return RunOutcome(SKIPPED_CALENDAR)
         fresh, reason = freshness_ok(now, anchor, tolerance_min=tolerance_min,
                                      ceiling_cst=ceiling_cst)
         if not fresh:
-            dev_channel.send(_stale_status(reason, trace_id))
-            return
+            return RunOutcome(SKIPPED_STALE, detail=reason)
         sources = await gather()
-        await run_pipeline(sources=sources, draft=draft, judge=judge,
-                           record_fail=record_fail,
-                           primary=primary, fallback=fallback,
-                           dev_channel=dev_channel, trace_id=trace_id)
+        return await run_pipeline(sources=sources, draft=draft, judge=judge,
+                                  record_fail=record_fail,
+                                  already_published=already_published,
+                                  primary=primary, fallback=fallback,
+                                  trace_id=trace_id)
