@@ -34,7 +34,7 @@ _SESSIONS = []  # not used since run_once is monkeypatched
 
 _COMMON_KWARGS = dict(
     now=_NOW,
-    conn=None,  # overridden in each test via monkeypatch
+    conn=None,  # repo fns are monkeypatched, so the real conn is never touched
     sessions=_SESSIONS,
     trigger="cron",
     premarket_tol_min=90,
@@ -182,6 +182,7 @@ async def test_calendar_skip_sends_distinct_heartbeat(monkeypatch):
     )
 
     assert out.status == "skipped_calendar"
+    assert recorded[0][2] == "skipped_calendar"  # calendar skips still write a ledger row
     assert any(
         m.startswith("[MarketWind·heartbeat]") and "非交易日" in m
         for m in primary.sent
@@ -212,3 +213,37 @@ async def test_published_writes_row_no_message(monkeypatch):
 
     assert recorded[0][2] == "published"
     assert primary.sent == []
+
+
+# ---------------------------------------------------------------------------
+# Test 6: record-then-send — the ledger row is written BEFORE any message
+#         (durability seam: a row must survive a failed page)
+# ---------------------------------------------------------------------------
+
+async def test_records_before_sending(monkeypatch):
+    events: list[str] = []
+
+    async def stub_run_once(*args, **kwargs):
+        return RunOutcome(SUB_FLOOR, "g=0 p=0 o=0")
+
+    ledger, _, fake_get, _ = _make_ledger()
+
+    async def recording_record(conn, *, job_id, trading_date, status, trace_id, detail=None):
+        events.append("record")
+        ledger[(job_id, trading_date)] = status
+        return True
+
+    def recording_send(text, *, primary, fallback, trace_id):
+        events.append("send")
+
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", recording_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.send_with_fallback", recording_send)
+
+    await dispatch_job(
+        "main",
+        **{**_COMMON_KWARGS, "primary": StubSink(), "fallback": StubSink()},
+    )
+
+    assert events == ["record", "send"]
