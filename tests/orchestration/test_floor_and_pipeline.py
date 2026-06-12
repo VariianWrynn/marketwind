@@ -149,6 +149,7 @@ async def test_sub_floor_returns_outcome_no_publish():
         trace_id="t-low",
     )
     assert out.status == SUB_FLOOR
+    assert "grounded_quotes" in out.detail
     assert primary.sent == []
     assert draft_calls["n"] == 0
 
@@ -224,8 +225,10 @@ async def test_pass_publishes_and_returns_published():
 async def test_already_published_skips_send():
     primary = StubSink()
     bundle, commit_spy = _make_bundle(_clean_pool())
+    draft_calls = {"n": 0}
 
     async def draft() -> DraftBundle:
+        draft_calls["n"] += 1
         return bundle
 
     out = await run_pipeline(
@@ -239,5 +242,6 @@ async def test_already_published_skips_send():
         trace_id="t-dup",
     )
     assert out.status == PUBLISHED
+    assert draft_calls["n"] == 1       # guard fires AFTER verify, not as early short-circuit
     assert primary.sent == []          # no duplicate brief
     assert commit_spy["commit_calls"] == 0   # and no second commit

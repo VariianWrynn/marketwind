@@ -1,4 +1,4 @@
-"""P1c orchestrator: grounded-floor gate -> assemble -> label -> push."""
+"""P2b orchestrator: floor/verify gates -> check-before-send -> publish; returns RunOutcome."""
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
