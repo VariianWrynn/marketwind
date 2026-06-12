@@ -190,7 +190,7 @@ async def dispatch_job(
         outcome = RunOutcome(MISSED, detail=outcome.detail)
 
     # --- Single ledger write (MUST happen before send) ---
-    await record_run(
+    inserted = await record_run(
         conn,
         job_id=job_id,
         trading_date=plan.trading_date,
@@ -200,8 +200,12 @@ async def dispatch_job(
     )
 
     # --- Single status send ---
+    # Only the dispatcher that actually wrote the row pages. A False return means
+    # a racing cron/boot dispatcher won the insert (both passed the no-op guard
+    # before either recorded); it already pages, so suppress the duplicate to keep
+    # status single-sender even under that race.
     text = _status_text(outcome, plan, trace_id)
-    if text is not None:
+    if inserted and text is not None:
         send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
 
     return outcome
@@ -270,7 +274,7 @@ async def catch_up(
                 outcomes.append(outcome)
             else:
                 # Past date with no row — write missed directly (window is closed)
-                await record_run(
+                inserted = await record_run(
                     conn,
                     job_id=job_id,
                     trading_date=d,
@@ -290,8 +294,10 @@ async def catch_up(
                     ceiling_cst=ceiling_cst,
                 )
                 outcome = RunOutcome(MISSED, detail=_BOOT_RECONCILE_DETAIL)
+                # Suppress the page if a racing boot dispatcher already wrote (and
+                # paged for) this missed day — keeps reconciliation single-sender.
                 text = _status_text(outcome, plan, trace_id)
-                if text is not None:
+                if inserted and text is not None:
                     send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
                 outcomes.append(outcome)
 

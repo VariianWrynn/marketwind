@@ -247,3 +247,41 @@ async def test_records_before_sending(monkeypatch):
     )
 
     assert events == ["record", "send"]
+
+
+# ---------------------------------------------------------------------------
+# Single-sender under race: record_run conflict (returns False) suppresses the
+#   page, because the dispatcher that won the insert already paged.
+# ---------------------------------------------------------------------------
+
+async def test_send_suppressed_when_record_conflicts(monkeypatch):
+    """A racing cron/boot dispatcher won the insert (record_run -> False).
+
+    This dispatcher must NOT also page — status stays single-sender even though
+    both passed the no-op guard before either wrote a row.
+    """
+    sends: list = []
+
+    async def stub_run_once(*args, **kwargs):
+        return RunOutcome(SUB_FLOOR, "g=0 p=0 o=0")
+
+    async def fake_get(conn, *, job_id, trading_date):
+        return None  # no-op guard sees no row yet
+
+    async def conflict_record(conn, *, job_id, trading_date, status, trace_id, detail=None):
+        return False  # ON CONFLICT DO NOTHING — another dispatcher won the row
+
+    def recording_send(text, *, primary, fallback, trace_id):
+        sends.append(text)
+
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", conflict_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.send_with_fallback", recording_send)
+
+    await dispatch_job(
+        "main",
+        **{**_COMMON_KWARGS, "primary": StubSink(), "fallback": StubSink()},
+    )
+
+    assert sends == [], f"expected no page when record_run conflicted; got {sends!r}"
