@@ -184,6 +184,7 @@ async def test_stale_run_returns_skipped_stale():
                      draft=_draft(draft_calls), primary=StubSink(),
                      fallback=StubSink())
     assert out.status == "skipped_stale"
+    assert out.detail and "late" in out.detail   # staleness reason threaded into detail
     assert gcalls == []
     assert draft_calls == []
 

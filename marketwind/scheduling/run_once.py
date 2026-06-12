@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import datetime, time
 
+from marketwind.gateway.im.base import IMChannel
 from marketwind.orchestration.runner import run_pipeline
 from marketwind.scheduling.anchor import freshness_ok
 from marketwind.scheduling.outcome import RunOutcome, SKIPPED_CALENDAR, SKIPPED_STALE
@@ -28,8 +29,8 @@ async def run_once(now: datetime, *,
                    judge: Callable[[str], Awaitable[str]],
                    record_fail: Callable[[str, list[Violation]], Awaitable[None]],
                    already_published: Callable[[], Awaitable[bool]],
-                   primary,
-                   fallback,
+                   primary: IMChannel,
+                   fallback: IMChannel,
                    trace_id: str,
                    force_calendar: bool = False) -> RunOutcome:
     async with _RUN_LOCK:
