@@ -225,7 +225,6 @@ async def run_scheduler() -> None:  # pragma: no cover - live
 
 if __name__ == "__main__":  # pragma: no cover
     import asyncio
-    import sys
     _args = build_parser().parse_args()
     if _args.floor_only:
         raise SystemExit(asyncio.run(floor_probe()))
