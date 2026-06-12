@@ -1,5 +1,6 @@
 # tests/scheduling/test_entrypoint.py
-from marketwind.scheduling.__main__ import build_parser, want_real_send
+from marketwind.scout.domain import FloorResult
+from marketwind.scheduling.__main__ import build_parser, want_real_send, floor_line, floor_exit_code
 
 
 def _parse(argv):
@@ -25,3 +26,21 @@ def test_force_calendar_with_send_real_sends():
 
 def test_dry_run_wins_over_send_real():
     assert want_real_send(_parse(["--send-real", "--dry-run"])) is False
+
+
+def test_floor_only_flag_parses():
+    assert _parse(["--floor-only"]).floor_only is True
+
+
+def test_floor_line_reports_all_three_metrics():
+    line = floor_line(FloorResult(grounded_quotes=9, primary_traced_quotes=2,
+                                  independent_outlets=3, passed=True))
+    assert "grounded=9" in line and "primary=2" in line
+    assert "outlets=3" in line and "passed=True" in line
+
+
+def test_exit_code_zero_on_pass_nonzero_on_subfloor():
+    ok = FloorResult(grounded_quotes=9, primary_traced_quotes=2, independent_outlets=3, passed=True)
+    bad = FloorResult(grounded_quotes=3, primary_traced_quotes=0, independent_outlets=1, passed=False)
+    assert floor_exit_code(ok) == 0
+    assert floor_exit_code(bad) != 0

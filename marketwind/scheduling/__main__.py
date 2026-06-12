@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 
+from marketwind.scout.domain import FloorResult
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="marketwind.scheduling.run_once")
@@ -17,7 +19,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="route sends to StubSink")
     p.add_argument("--send-real", action="store_true",
                    help="with --force-calendar, actually send instead of dry-run")
+    p.add_argument("--floor-only", action="store_true",
+                   help="probe the grounded floor and exit; burns zero DeepSeek tokens")
     return p
+
+
+def floor_line(result: FloorResult) -> str:
+    """One human-readable line summarising the FloorResult."""
+    return (
+        f"grounded={result.grounded_quotes} "
+        f"primary={result.primary_traced_quotes} "
+        f"outlets={result.independent_outlets} "
+        f"passed={result.passed}"
+    )
+
+
+def floor_exit_code(result: FloorResult) -> int:
+    """0 if the floor check passed, 1 otherwise."""
+    return 0 if result.passed else 1
 
 
 def want_real_send(args: argparse.Namespace) -> bool:
@@ -28,6 +47,32 @@ def want_real_send(args: argparse.Namespace) -> bool:
     if args.force_calendar and not args.send_real:
         return False
     return True
+
+
+async def floor_probe() -> int:  # pragma: no cover - live
+    """Probe the grounded floor and return an exit code; burns zero DeepSeek tokens."""
+    from datetime import datetime, timezone
+
+    import asyncpg
+
+    from marketwind.config import settings
+    from marketwind.scout.calendar import live_prev_trading_session
+    from marketwind.scout.gather import gather_live
+    from marketwind.scout.enrich import enrich_primary_live
+    from marketwind.scout.runner import evaluate_floor
+
+    now = datetime.now(timezone.utc)
+    prev = live_prev_trading_session(now.date())
+
+    conn = await asyncpg.connect(settings.database_url)
+    try:
+        pool = await gather_live(conn, now=now, prev_session=prev)
+        sources = await enrich_primary_live(conn, pool, on_date=prev)
+        result = evaluate_floor(sources)
+        print(floor_line(result))
+        return floor_exit_code(result)
+    finally:
+        await conn.close()
 
 
 async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - live
@@ -180,4 +225,8 @@ async def run_scheduler() -> None:  # pragma: no cover - live
 
 if __name__ == "__main__":  # pragma: no cover
     import asyncio
+    import sys
+    _args = build_parser().parse_args()
+    if _args.floor_only:
+        raise SystemExit(asyncio.run(floor_probe()))
     asyncio.run(main())
