@@ -39,3 +39,12 @@ def test_hermes_without_wecom_falls_back_to_stub():
 def test_wecom_without_url_raises():
     with pytest.raises(ValueError, match="WECOM_WEBHOOK_URL"):
         build_channels(_S(im_channel="wecom_webhook"))
+
+
+def test_wecom_webhook_is_primary_hermes_is_fallback():
+    # Unattended push channel is session-less WeCom-webhook; hermes/WeChat is the
+    # warm two-way ConciergeBot channel and the fallback (was StubSink before).
+    s = _S(im_channel="wecom_webhook", wecom_webhook_url="http://wecom")
+    primary, fallback = build_channels(s)
+    assert isinstance(primary, WecomWebhook)
+    assert isinstance(fallback, HermesWeixin)

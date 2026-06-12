@@ -1,9 +1,10 @@
-"""run_pipeline: reuse evaluate_floor; gate before assembling; status on shortfall."""
+"""run_pipeline: returns RunOutcome; check-before-send guards duplicate publish."""
 import pytest
 
 from marketwind.gateway.im.label import DEV_PREFIX
 from marketwind.gateway.im.stub import StubSink
 from marketwind.orchestration.runner import run_pipeline
+from marketwind.scheduling.outcome import PUBLISHED, SUB_FLOOR, VERIFY_FAIL
 from marketwind.scout.domain import Quote, Source
 from marketwind.writer.domain import (
     DraftBundle, DraftClaim, DraftSentence, PooledQuote, PooledSource, WriterOutput,
@@ -113,75 +114,86 @@ async def _fake_judge(prompt: str) -> str:
     return '{"violations": []}'
 
 
+async def _never() -> bool:
+    return False
+
+
+async def _always() -> bool:
+    return True
+
+
+async def _noop_record(trace_id: str, violations) -> None:
+    pass
+
+
+# ── sub-floor: returns SUB_FLOOR, publishes nothing, does NOT call draft ──────
+
 @pytest.mark.asyncio
-async def test_sub_floor_emits_status_and_does_not_assemble():
-    primary, dev = StubSink(), StubSink()
+async def test_sub_floor_returns_outcome_no_publish():
+    primary = StubSink()
     draft_calls = {"n": 0}
 
-    async def draft() -> DraftBundle:
+    async def _draft_should_not_run() -> DraftBundle:
         draft_calls["n"] += 1
         bundle, _ = _make_bundle(_clean_pool())
         return bundle
 
-    await run_pipeline(
+    out = await run_pipeline(
         sources=_below_floor(),
-        draft=draft,
+        draft=_draft_should_not_run,
         judge=_fake_judge,
-        record_fail=None,  # must never be called
+        record_fail=_noop_record,
+        already_published=_never,
         primary=primary,
         fallback=StubSink(),
-        dev_channel=dev,
         trace_id="t-low",
     )
-    assert primary.sent == []                       # nothing published
-    assert draft_calls["n"] == 0                    # Writer never invoked
-    assert len(dev.sent) == 1
-    assert "t-low" in dev.sent[0]
-    assert "grounded_quotes=5" in dev.sent[0]
+    assert out.status == SUB_FLOOR
+    assert "grounded_quotes" in out.detail
+    assert primary.sent == []
+    assert draft_calls["n"] == 0
 
+
+# ── verify-fail: returns VERIFY_FAIL with tripped check in detail, records ────
 
 @pytest.mark.asyncio
-async def test_verify_fail_blocks_publish_and_records():
-    """Verifier gate: I3-tripping bundle → no publish, record_fail called, dev message sent."""
-    primary, dev = StubSink(), StubSink()
+async def test_verify_fail_returns_outcome_and_records():
+    primary = StubSink()
     bundle, commit_spy = _make_bundle(_i3_pool())
-    record_fail_calls: list[tuple] = []
+    recorded: list[tuple] = []
+
+    async def record_fail(trace_id: str, violations) -> None:
+        recorded.append((trace_id, violations))
 
     async def draft() -> DraftBundle:
         return bundle
 
-    async def record_fail(trace_id: str, violations) -> None:
-        record_fail_calls.append((trace_id, violations))
-
-    await run_pipeline(
+    out = await run_pipeline(
         sources=_above_floor(),
         draft=draft,
         judge=_fake_judge,
         record_fail=record_fail,
+        already_published=_never,
         primary=primary,
         fallback=StubSink(),
-        dev_channel=dev,
         trace_id="t-fail",
     )
-
-    assert primary.sent == []                        # nothing published
-    assert len(dev.sent) == 1
-    assert "t-fail" in dev.sent[0]
-    assert "verifier gate failed" in dev.sent[0]
-    assert "I3" in dev.sent[0]
-
-    assert len(record_fail_calls) == 1
-    rf_trace, rf_violations = record_fail_calls[0]
+    assert out.status == VERIFY_FAIL
+    assert "I3" in out.detail
+    assert len(recorded) == 1
+    rf_trace, rf_violations = recorded[0]
     assert rf_trace == "t-fail"
     assert len(rf_violations) > 0
     assert any(v.check == "I3" for v in rf_violations)
+    assert primary.sent == []
+    assert commit_spy["commit_calls"] == 0
 
-    assert commit_spy["commit_calls"] == 0           # commit NOT called
 
+# ── above-floor: publishes the brief AND returns PUBLISHED ────────────────────
 
 @pytest.mark.asyncio
-async def test_above_floor_assembles_labels_and_pushes():
-    primary, dev = StubSink(), StubSink()
+async def test_pass_publishes_and_returns_published():
+    primary = StubSink()
     bundle, commit_spy = _make_bundle(_clean_pool())
     record_fail_calls: list = []
 
@@ -191,20 +203,45 @@ async def test_above_floor_assembles_labels_and_pushes():
     async def record_fail(trace_id, violations) -> None:
         record_fail_calls.append((trace_id, violations))
 
-    await run_pipeline(
+    out = await run_pipeline(
         sources=_above_floor(),
         draft=draft,
         judge=_fake_judge,
         record_fail=record_fail,
+        already_published=_never,
         primary=primary,
         fallback=StubSink(),
-        dev_channel=dev,
         trace_id="t-ok",
     )
+    assert out.status == PUBLISHED
+    assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)
+    assert commit_spy["commit_calls"] == 1
+    assert record_fail_calls == []
 
-    assert len(primary.sent) == 1
-    assert primary.sent[0].startswith(DEV_PREFIX)
-    assert len(primary.sent[0]) <= 500
-    assert dev.sent == []                            # no status message
-    assert commit_spy["commit_calls"] == 1           # commit WAS called
-    assert record_fail_calls == []                   # record_fail NOT called
+
+# ── check-before-send: already published → skip commit+publish, still PUBLISHED
+
+@pytest.mark.asyncio
+async def test_already_published_skips_send():
+    primary = StubSink()
+    bundle, commit_spy = _make_bundle(_clean_pool())
+    draft_calls = {"n": 0}
+
+    async def draft() -> DraftBundle:
+        draft_calls["n"] += 1
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(),
+        draft=draft,
+        judge=_fake_judge,
+        record_fail=_noop_record,
+        already_published=_always,
+        primary=primary,
+        fallback=StubSink(),
+        trace_id="t-dup",
+    )
+    assert out.status == PUBLISHED
+    assert draft_calls["n"] == 1       # guard fires AFTER verify, not as early short-circuit
+    assert primary.sent == []          # no duplicate brief
+    assert commit_spy["commit_calls"] == 0   # and no second commit

@@ -18,10 +18,26 @@ def test_timing_unsafe_grace_exceeds_tolerance_raises():
 
 
 def test_build_scheduler_registers_two_jobs_with_grace():
-    async def _job():
+    async def _job(job_id):
         return None
-    sched = build_scheduler(run=_job, misfire_grace_s=900)
+    sched = build_scheduler(dispatch=_job, misfire_grace_s=900)
     jobs = {j.id: j for j in sched.get_jobs()}
     assert set(jobs) == {"premarket", "main"}
     assert jobs["premarket"].misfire_grace_time == 900
     assert jobs["main"].misfire_grace_time == 900
+    # overrun protection: at most one live instance, collapse a backlog to one fire.
+    assert jobs["premarket"].max_instances == 1
+    assert jobs["main"].max_instances == 1
+    assert jobs["premarket"].coalesce is True
+    assert jobs["main"].coalesce is True
+
+
+def test_each_job_registered_with_its_own_job_id():
+    seen = []
+    async def _dispatch(job_id):
+        seen.append(job_id)
+    sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=900)
+    jobs = sched.get_jobs()
+    assert {j.id for j in jobs} == {"premarket", "main"}
+    # each job carries its own job_id as the first positional arg:
+    assert {j.args[0] for j in jobs} == {"premarket", "main"}

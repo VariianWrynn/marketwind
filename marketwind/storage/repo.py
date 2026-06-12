@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncpg
 import uuid
+from datetime import date
 
 from marketwind.scout.domain import Source
 from marketwind.verifier.domain import Violation
@@ -119,6 +120,30 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 s.position,
             )
     return str(report_id)
+
+
+async def record_run(
+    conn, *, job_id: str, trading_date: date, status: str, trace_id: str, detail: str | None = None
+) -> bool:
+    """Insert a run row. Returns True if inserted, False on conflict (idempotency guard)."""
+    result = await conn.fetchval(
+        """
+        insert into run_ledger (job_id, trading_date, status, trace_id, detail)
+        values ($1, $2, $3, $4, $5)
+        on conflict (job_id, trading_date) do nothing
+        returning ledger_id;
+        """,
+        job_id, trading_date, status, trace_id, detail,
+    )
+    return result is not None
+
+
+async def get_run_status(conn, *, job_id: str, trading_date: date) -> str | None:
+    """Return the status for an existing run row, or None if absent."""
+    return await conn.fetchval(
+        "select status from run_ledger where job_id=$1 and trading_date=$2;",
+        job_id, trading_date,
+    )
 
 
 async def record_verifier_failures(

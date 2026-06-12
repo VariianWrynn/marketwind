@@ -19,5 +19,9 @@ def build_channels(settings) -> tuple[IMChannel, IMChannel]:
     if settings.im_channel == "wecom_webhook":
         if not settings.wecom_webhook_url:
             raise ValueError("WECOM_WEBHOOK_URL required for wecom_webhook")
-        return WecomWebhook(webhook_url=settings.wecom_webhook_url), StubSink()
+        # Session-less WeCom-webhook is the unattended primary; hermes/WeChat is
+        # the warm two-way ConciergeBot channel and the fallback.
+        primary = WecomWebhook(webhook_url=settings.wecom_webhook_url)
+        fallback = HermesWeixin(hermes_bin=settings.hermes_bin, target=settings.weixin_target)
+        return primary, fallback
     raise ValueError(f"unknown im_channel: {settings.im_channel}")
