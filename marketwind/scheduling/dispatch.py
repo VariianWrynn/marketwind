@@ -1,6 +1,6 @@
 """Per-job anchor + tolerance resolution (P2b item A).
 
-Later tasks in P2b will add dispatch_job and catch_up to this file.
+Later tasks in P2b will add catch_up to this file.
 """
 from __future__ import annotations
 
@@ -8,6 +8,19 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 
 from marketwind.scheduling.anchor import anchor_utc
+from marketwind.scheduling.outcome import (
+    RunOutcome,
+    PUBLISHED,
+    SKIPPED_CALENDAR,
+    SKIPPED_STALE,
+    SUB_FLOOR,
+    VERIFY_FAIL,
+    MISSED,
+    FAILED_INFRA,
+)
+from marketwind.scheduling.run_once import run_once
+from marketwind.storage.repo import record_run, get_run_status
+from marketwind.orchestration.runner import send_with_fallback
 from marketwind.scout.timeparse import CN_TZ
 
 
@@ -52,3 +65,112 @@ def resolve_job(
         ceiling_cst=ceiling_cst,
         trading_date=trading_date,
     )
+
+
+def _status_text(outcome: RunOutcome, plan: "JobPlan", trace_id: str) -> str | None:
+    """Build the owner-visible status message for an outcome, or None if silent."""
+    s = outcome.status
+    if s == PUBLISHED:
+        return None
+    if s == SKIPPED_CALENDAR:
+        return f"[MarketWind·heartbeat] {plan.trading_date} 非交易日，跳过 trace_id={trace_id}"
+    if s == SKIPPED_STALE:
+        return f"[MarketWind] 简报超时跳过 trace_id={trace_id}: {outcome.detail}"
+    if s == SUB_FLOOR:
+        return f"[MarketWind] sub-floor shortfall trace_id={trace_id} {outcome.detail} — brief NOT published"
+    if s == VERIFY_FAIL:
+        return f"[MarketWind] verifier gate failed trace_id={trace_id} {outcome.detail} — brief NOT published"
+    if s == MISSED:
+        return f"[MarketWind] 错过发布窗口（节点离线）trace_id={trace_id}: {outcome.detail}"
+    if s == FAILED_INFRA:
+        return f"[MarketWind] ⚠ 基础设施失败，重试耗尽 trace_id={trace_id}: {outcome.detail}"
+    # Unknown status — surface it loudly
+    return f"[MarketWind] unknown status={s!r} trace_id={trace_id}"
+
+
+async def dispatch_job(
+    job_id: str,
+    *,
+    now: datetime,
+    conn,
+    sessions: list,
+    trigger: str,
+    premarket_tol_min: int,
+    main_tol_min: int,
+    ceiling_cst: time,
+    gather,
+    draft,
+    judge,
+    record_fail,
+    primary,
+    fallback,
+    trace_id: str,
+    retries: int,
+    backoff_s: float,
+) -> RunOutcome:
+    """Single entry point for cron and boot dispatchers.
+
+    1. Resolve the job plan (anchor, tolerance, trading_date).
+    2. No-op guard: if ledger already has a terminal row, return it unchanged
+       (no new row, no message).
+    3. Run run_once directly (retry loop added in Task 8).
+    4. Boot + SKIPPED_STALE → relabel to MISSED.
+    5. Record-then-send: write the ledger row BEFORE sending any message.
+    6. Send status message if applicable (PUBLISHED is silent).
+    7. Return the outcome.
+    """
+    plan = resolve_job(
+        job_id, now,
+        premarket_tol_min=premarket_tol_min,
+        main_tol_min=main_tol_min,
+        ceiling_cst=ceiling_cst,
+    )
+
+    # --- No-op guard ---
+    existing = await get_run_status(conn, job_id=job_id, trading_date=plan.trading_date)
+    if existing is not None:
+        return RunOutcome(existing)
+
+    # --- already_published closure for run_once ---
+    async def _already() -> bool:
+        return (
+            await get_run_status(conn, job_id=job_id, trading_date=plan.trading_date)
+        ) == PUBLISHED
+
+    # --- Run (no retry loop yet — Task 8 adds that) ---
+    outcome = await run_once(
+        now,
+        sessions=sessions,
+        anchor=plan.anchor,
+        tolerance_min=plan.tolerance_min,
+        ceiling_cst=plan.ceiling_cst,
+        gather=gather,
+        draft=draft,
+        judge=judge,
+        record_fail=record_fail,
+        already_published=_already,
+        primary=primary,
+        fallback=fallback,
+        trace_id=trace_id,
+    )
+
+    # --- boot + stale → missed relabel ---
+    if trigger == "boot" and outcome.status == SKIPPED_STALE:
+        outcome = RunOutcome(MISSED, detail=outcome.detail)
+
+    # --- Single ledger write (MUST happen before send) ---
+    await record_run(
+        conn,
+        job_id=job_id,
+        trading_date=plan.trading_date,
+        status=outcome.status,
+        trace_id=trace_id,
+        detail=outcome.detail,
+    )
+
+    # --- Single status send ---
+    text = _status_text(outcome, plan, trace_id)
+    if text is not None:
+        send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
+
+    return outcome
