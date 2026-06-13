@@ -127,12 +127,27 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
         async def _record_fail(trace_id, violations):
             await record_verifier_failures(conn, trace_id, violations)
 
+        # Idempotency guard mirroring dispatch_job._already: a manual re-run on an
+        # already-published day must not double-publish (P2b single-sender invariant).
+        # The manual entrypoint uses the pre-market anchor, so it reconciles against
+        # the "premarket" ledger row for today's CST trading date.
+        from marketwind.storage.repo import get_run_status
+        from marketwind.scheduling.outcome import PUBLISHED
+        from marketwind.scout.timeparse import CN_TZ
+
+        trading_date = now.astimezone(CN_TZ).date()
+
+        async def _already() -> bool:
+            status = await get_run_status(conn, job_id="premarket", trading_date=trading_date)
+            return status == PUBLISHED
+
         hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
         label_prefix = DEV_PREFIX if settings.report_dev_label else ""
         await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
                        ceiling_cst=time(hh, mm), gather=_gather,
                        draft=_draft, judge=call_judge, record_fail=_record_fail,
+                       already_published=_already,
                        primary=primary, fallback=fallback,
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
                        force_calendar=args.force_calendar,
