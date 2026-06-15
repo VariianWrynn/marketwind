@@ -19,15 +19,15 @@ def test_queries_cover_recap_dimension():
     assert "复盘" in joined or "收盘" in joined
 
 
-def test_queries_include_company_event_dimensions():
+def test_recap_queries_are_macro_only_no_topical_event_dims():
     qs = build_recap_queries(date(2026, 5, 29))
+    # the 3 coarse topical queries were superseded by per-name constituent
+    # queries (build_constituent_queries) and must no longer be emitted here
+    assert len(qs) == 3
     joined = " ".join(qs)
-    # corpus must now reach company-level primary events, not just index recap
-    assert "业绩" in joined
-    assert "募资" in joined or "定增" in joined
-    assert "IPO" in joined or "首发" in joined
-    # new event queries stay date-anchored / scope-anchored
-    assert "成份股" in joined or "科创板" in joined
+    assert "成份股" not in joined
+    assert "定增" not in joined and "募资" not in joined
+    assert "IPO" not in joined and "首发" not in joined
 
 
 def test_constituent_queries_one_anchored_earnings_query_per_name():
