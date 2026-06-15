@@ -80,3 +80,19 @@ async def test_kept_source_carries_domain_quotes_and_ingest_ts():
     assert out[0].publish_ts == _NOW
     assert out[0].raw_content.startswith("raw:")
     assert out[0].quotes[0].attached_primary_url is None
+
+
+async def test_build_pool_issues_per_name_queries():
+    issued: list[str] = []
+
+    async def _recording_search(query: str):
+        issued.append(query)
+        return []
+
+    await build_pool(prev_session=_PREV, names=["中芯国际"],
+                     search=_recording_search, fetch_page=_fetch_ok,
+                     parse=_parse_one_quote, persist=_persist_recorder([]),
+                     now=_NOW)
+    joined = "\n".join(issued)
+    assert "中芯国际" in joined            # per-name query was issued
+    assert any("收盘 复盘" in q for q in issued)   # macro recap still issued

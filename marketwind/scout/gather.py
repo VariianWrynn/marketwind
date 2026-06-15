@@ -13,7 +13,7 @@ from datetime import date, datetime
 from marketwind.scout.clean import clean_main_content, extract_quotes
 from marketwind.scout.domain import Quote, Source
 from marketwind.scout.outlets import domain_of
-from marketwind.scout.query import build_recap_queries
+from marketwind.scout.query import build_constituent_queries, build_recap_queries
 
 SearchFn = Callable[[str], Awaitable[list[tuple[str, str]]]]
 FetchFn = Callable[[str], Awaitable[str]]
@@ -21,9 +21,9 @@ ParseFn = Callable[[str], tuple[str, list[Quote]]]
 PersistFn = Callable[[Source], Awaitable[None]]
 
 
-async def build_pool(*, prev_session: date, search: SearchFn, fetch_page: FetchFn,
+async def build_pool(*, prev_session: date, names: list[str] = (), search: SearchFn, fetch_page: FetchFn,
                      parse: ParseFn, persist: PersistFn, now: datetime) -> list[Source]:
-    queries = build_recap_queries(prev_session)
+    queries = build_recap_queries(prev_session) + build_constituent_queries(names, prev_session)
     seen: set[str] = set()
     out: list[Source] = []
     for query in queries:
@@ -56,6 +56,7 @@ async def gather_live(conn, *, now: datetime, prev_session: date) -> list[Source
     from playwright.async_api import async_playwright
 
     from marketwind.scout import discover, fetch
+    from marketwind.scout.market import fetch_star50_constituents
     from marketwind.storage.repo import upsert_source
 
     async def _search(query: str) -> list[tuple[str, str]]:
@@ -77,8 +78,9 @@ async def gather_live(conn, *, now: datetime, prev_session: date) -> list[Source
         async def _fetch(url: str) -> str:
             return await fetch.fetch_html(context, url)
 
+        names = list(fetch_star50_constituents())
         try:
-            return await build_pool(prev_session=prev_session, search=_search,
+            return await build_pool(prev_session=prev_session, names=names, search=_search,
                                     fetch_page=_fetch, parse=_safe_parse,
                                     persist=_persist, now=now)
         finally:
