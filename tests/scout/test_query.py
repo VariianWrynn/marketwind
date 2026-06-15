@@ -1,7 +1,7 @@
 from datetime import date
 
 from marketwind.scout.discover import parse_bocha_response
-from marketwind.scout.query import build_recap_queries
+from marketwind.scout.query import build_constituent_queries, build_recap_queries
 
 
 def test_queries_have_date_anchors():
@@ -28,6 +28,18 @@ def test_queries_include_company_event_dimensions():
     assert "IPO" in joined or "首发" in joined
     # new event queries stay date-anchored / scope-anchored
     assert "成份股" in joined or "科创板" in joined
+
+
+def test_constituent_queries_one_anchored_earnings_query_per_name():
+    qs = build_constituent_queries(["中芯国际", "海光信息"], date(2026, 6, 12))
+    assert qs == [
+        "中芯国际 6月12日 业绩 净利润",
+        "海光信息 6月12日 业绩 净利润",
+    ]
+
+
+def test_constituent_queries_empty_names_is_empty():
+    assert build_constituent_queries([], date(2026, 6, 12)) == []
 
 
 def test_parse_bocha_response(fixtures_dir):

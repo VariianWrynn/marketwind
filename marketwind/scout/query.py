@@ -5,6 +5,11 @@ from __future__ import annotations
 from datetime import date
 
 
+def build_constituent_queries(names: list[str], prev_session: date) -> list[str]:
+    anchor = f"{prev_session.month}月{prev_session.day}日"
+    return [f"{name} {anchor} 业绩 净利润" for name in names]
+
+
 def build_recap_queries(prev_session: date) -> list[str]:
     anchor = f"{prev_session.month}月{prev_session.day}日"
     return [
