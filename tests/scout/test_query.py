@@ -19,6 +19,17 @@ def test_queries_cover_recap_dimension():
     assert "复盘" in joined or "收盘" in joined
 
 
+def test_queries_include_company_event_dimensions():
+    qs = build_recap_queries(date(2026, 5, 29))
+    joined = " ".join(qs)
+    # corpus must now reach company-level primary events, not just index recap
+    assert "业绩" in joined
+    assert "募资" in joined or "定增" in joined
+    assert "IPO" in joined or "首发" in joined
+    # new event queries stay date-anchored / scope-anchored
+    assert "成份股" in joined or "科创板" in joined
+
+
 def test_parse_bocha_response(fixtures_dir):
     import json
     raw = json.loads((fixtures_dir / "bocha_search.json").read_text(encoding="utf-8"))
