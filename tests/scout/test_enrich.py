@@ -34,7 +34,7 @@ async def _never_trace(ct, sym, on_date):
 async def test_confirmed_number_attaches_primary():
     async def trace(ct, sym, on_date):
         assert (ct, sym) == ("earnings", "688981")
-        return "https://cninfo.com.cn/d1"
+        return ["https://cninfo.com.cn/d1"]
 
     async def fetch(url):
         return "本期净利润为360,000,000元"
@@ -47,7 +47,7 @@ async def test_confirmed_number_attaches_primary():
 
 async def test_wrong_number_does_not_attach():
     async def trace(ct, sym, on_date):
-        return "https://cninfo.com.cn/d1"
+        return ["https://cninfo.com.cn/d1"]
 
     async def fetch(url):
         return "本期净利润为5亿元"  # different figure
@@ -67,7 +67,7 @@ async def test_non_quantitative_quote_skipped():
 
 async def test_fetch_failure_degrades_to_no_attach():
     async def trace(ct, sym, on_date):
-        return "https://cninfo.com.cn/d1"
+        return ["https://cninfo.com.cn/d1"]
 
     async def fetch(url):
         raise RuntimeError("network down")
@@ -83,7 +83,7 @@ async def test_deepseek_fallback_used_when_rules_inconclusive():
         return ClaimRef(claim_type="earnings", symbol="688981")
 
     async def trace(ct, sym, on_date):
-        return "https://cninfo.com.cn/d1"
+        return ["https://cninfo.com.cn/d1"]
 
     async def fetch(url):
         return "净利润3.6亿元"
@@ -98,7 +98,7 @@ async def test_deepseek_fallback_used_when_rules_inconclusive():
 async def test_trace_none_does_not_attach():
     """trace returning None → no attach; fetch must never be reached."""
     async def trace(ct, sym, on_date):
-        return None  # no disclosure found
+        return []  # no disclosure found
 
     out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
                                classify=_classify_none, trace=trace,
@@ -119,7 +119,7 @@ async def test_non_cninfo_venue_does_not_attach():
 
 async def test_one_bad_quote_does_not_abort_rest():
     async def trace(ct, sym, on_date):
-        return "https://cninfo.com.cn/d1"
+        return ["https://cninfo.com.cn/d1"]
 
     good = _q("中芯国际净利润3.6亿元")
     bad = _q("中芯国际净利润3.6亿元")
@@ -137,3 +137,54 @@ async def test_one_bad_quote_does_not_abort_rest():
                                fetch=flaky_fetch, constituents=CONS, on_date=NOW.date())
     assert out[0].quotes[0].attached_primary_url is None        # first fetch failed
     assert out[0].quotes[1].attached_primary_url == "https://cninfo.com.cn/d1"
+
+
+async def test_resolve_picks_second_candidate_when_first_mismatches():
+    async def trace(ct, sym, on_date):
+        return ["https://cninfo.com.cn/d1", "https://cninfo.com.cn/d2"]
+
+    async def fetch(url):
+        return "本期净利润为5亿元" if url.endswith("d1") else "本期净利润为3.6亿元"
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace, fetch=fetch,
+                               constituents=CONS, on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url == "https://cninfo.com.cn/d2"
+
+
+async def test_resolve_none_when_no_candidate_matches():
+    async def trace(ct, sym, on_date):
+        return ["https://cninfo.com.cn/d1", "https://cninfo.com.cn/d2"]
+
+    async def fetch(url):
+        return "本期净利润为9亿元"  # neither carries 3.6亿
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace, fetch=fetch,
+                               constituents=CONS, on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url is None
+
+
+async def test_resolve_empty_candidate_list_no_attach():
+    async def trace(ct, sym, on_date):
+        return []
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace,
+                               fetch=_never_fetch, constituents=CONS, on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url is None
+
+
+async def test_resolve_skips_candidate_whose_fetch_errors():
+    async def trace(ct, sym, on_date):
+        return ["https://cninfo.com.cn/d1", "https://cninfo.com.cn/d2"]
+
+    async def fetch(url):
+        if url.endswith("d1"):
+            raise RuntimeError("pdf 500")
+        return "本期净利润为3.6亿元"
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace, fetch=fetch,
+                               constituents=CONS, on_date=NOW.date())
+    assert out[0].quotes[0].attached_primary_url == "https://cninfo.com.cn/d2"

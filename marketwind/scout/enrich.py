@@ -18,7 +18,7 @@ from marketwind.scout.domain import Quote, Source
 from marketwind.scout.primary import primary_venue_for
 
 ClassifyFn = Callable[[str], Awaitable[ClaimRef | None]]
-TraceFn = Callable[[str, str, date], Awaitable[str | None]]
+TraceFn = Callable[[str, str, date], Awaitable[list[str]]]
 FetchFn = Callable[[str], Awaitable[str]]
 
 
@@ -36,15 +36,17 @@ async def _resolve(quote: Quote, *, classify: ClassifyFn, trace: TraceFn,
     if primary_venue_for(ref.claim_type) != "cninfo":
         return None  # exchange / regulator venues are out of scope (recorded gap)
     try:
-        url = await trace(ref.claim_type, ref.symbol, on_date)
-        if not url:
-            return None
-        disclosure = await fetch(url)
+        candidates = await trace(ref.claim_type, ref.symbol, on_date)
     except Exception:
-        return None  # any live failure → no attach, never abort
-    if not amount_matches(quote.text, disclosure, rel_tol=rel_tol):
-        return None  # THE GUARD: disclosure must carry the quote's number
-    return url
+        return None  # a trace failure degrades safely
+    for url in candidates:
+        try:
+            disclosure = await fetch(url)
+        except Exception:
+            continue  # this candidate's fetch failed → try the next
+        if amount_matches(quote.text, disclosure, rel_tol=rel_tol):
+            return url  # THE GUARD: disclosure must carry the quote's number
+    return None
 
 
 async def enrich_primary(sources: list[Source], *, classify: ClassifyFn,
