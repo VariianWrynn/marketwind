@@ -12,8 +12,14 @@ from datetime import date, datetime
 
 from marketwind.scout.clean import clean_main_content, extract_quotes
 from marketwind.scout.domain import Quote, Source
-from marketwind.scout.outlets import domain_of
+from marketwind.scout.outlets import domain_of, is_quote_aggregator
 from marketwind.scout.query import build_constituent_queries, build_recap_queries
+
+# Per-query fetch cap: take only the top-N (most-relevant) hits per query before
+# the expensive Playwright fetch. Bocha returns by relevance, so the top few hold
+# the on-topic disclosure articles; the long tail is macro/duplicate noise. With
+# ~53 queries this bounds the fan-out from ~443 page-loads to ~120 (GAPS G4.5).
+_PER_QUERY_CAP = 3
 
 SearchFn = Callable[[str], Awaitable[list[tuple[str, str]]]]
 FetchFn = Callable[[str], Awaitable[str]]
@@ -27,10 +33,12 @@ async def build_pool(*, prev_session: date, names: list[str] = (), search: Searc
     seen: set[str] = set()
     out: list[Source] = []
     for query in queries:
-        for url, _snippet in await search(query):
+        for url, _snippet in (await search(query))[:_PER_QUERY_CAP]:
             if url in seen:
                 continue
             seen.add(url)
+            if is_quote_aggregator(domain_of(url)):
+                continue  # price/quote page: no disclosure text, never a primary
             try:
                 html = await fetch_page(url)
             except Exception:

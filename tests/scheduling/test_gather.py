@@ -2,7 +2,7 @@
 from datetime import date, datetime, timezone
 
 from marketwind.scout.domain import Quote
-from marketwind.scout.gather import build_pool
+from marketwind.scout.gather import _PER_QUERY_CAP, build_pool
 from marketwind.scout.query import build_recap_queries
 
 _NOW = datetime(2026, 6, 8, 22, 0, tzinfo=timezone.utc)
@@ -96,3 +96,41 @@ async def test_build_pool_issues_per_name_queries():
     joined = "\n".join(issued)
     assert "中芯国际" in joined            # per-name query was issued
     assert any("收盘 复盘" in q for q in issued)   # macro recap still issued
+
+
+async def test_build_pool_caps_results_per_query():
+    # one query returns more hits than the cap; only the top-_PER_QUERY_CAP are
+    # fetched — bounds the Playwright fan-out (A).
+    n = _PER_QUERY_CAP + 2
+    urls = [f"https://news{i}.example.cn/a" for i in range(n)]
+    hits = {_QUERIES[0]: [(u, "s") for u in urls]}
+    fetched: list[str] = []
+
+    async def _recording_fetch(url: str) -> str:
+        fetched.append(url)
+        return f"<html>{url}</html>"
+
+    out = await build_pool(prev_session=_PREV, search=_search_returning(hits),
+                           fetch_page=_recording_fetch, parse=_parse_one_quote,
+                           persist=_persist_recorder([]), now=_NOW)
+    assert len(fetched) == _PER_QUERY_CAP       # only top-N fetched, not all n
+    assert fetched == urls[:_PER_QUERY_CAP]     # the top-ranked ones, in order
+    assert len(out) == _PER_QUERY_CAP
+
+
+async def test_build_pool_skips_quote_aggregator_hosts():
+    # a price/quote-table host is never fetched (C); the article host is kept.
+    good = "https://caifuhao.eastmoney.com/news/123"
+    junk = "https://q.stock.sohu.com/zs/000688/index.shtml"
+    hits = {_QUERIES[0]: [(good, "s"), (junk, "s")]}
+    fetched: list[str] = []
+
+    async def _recording_fetch(url: str) -> str:
+        fetched.append(url)
+        return f"<html>{url}</html>"
+
+    out = await build_pool(prev_session=_PREV, search=_search_returning(hits),
+                           fetch_page=_recording_fetch, parse=_parse_one_quote,
+                           persist=_persist_recorder([]), now=_NOW)
+    assert junk not in fetched                  # expensive fetch skipped
+    assert [s.url for s in out] == [good]

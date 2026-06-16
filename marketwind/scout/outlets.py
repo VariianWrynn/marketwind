@@ -14,3 +14,17 @@ def domain_of(url: str) -> str:
     if host.startswith("www."):
         host = host[len("www."):]
     return host
+
+
+# Price/quote-table hosts that yield no disclosure text and never trace to a
+# constituent primary (evidence: the raw-fetch probe). Skipping them before the
+# fetch saves the expensive Playwright page-load at zero recall cost. Exact-match
+# on the normalized domain; extend as new junk hosts surface.
+_QUOTE_AGGREGATOR_HOSTS = frozenset({
+    "quote.eastmoney.com",
+    "q.stock.sohu.com",
+})
+
+
+def is_quote_aggregator(domain: str) -> bool:
+    return domain in _QUOTE_AGGREGATOR_HOSTS

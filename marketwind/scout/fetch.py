@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import enum
 
-_CEILING_MS = 15_000
+_CEILING_MS = 15_000   # hard navigation ceiling (page.goto)
+_IDLE_WAIT_MS = 3_000  # post-load grace for late content; ad/ticker pages never
+                       # idle and would otherwise burn the full ceiling per page
 _BLOCK_TYPES = {"image", "media", "font", "stylesheet"}
 
 
@@ -51,7 +53,7 @@ async def fetch_html(context, url: str) -> str:  # pragma: no cover - live navig
             raise PermanentFetchError(f"{resp.status} for {url}")
         # Layered wait: try network-idle, fall back to DOM-stability, capped at ceiling.
         try:
-            await page.wait_for_load_state("networkidle", timeout=_CEILING_MS)
+            await page.wait_for_load_state("networkidle", timeout=_IDLE_WAIT_MS)
         except Exception:
             pass  # tickers may never idle; DOM is already loaded → proceed
         return await page.content()
