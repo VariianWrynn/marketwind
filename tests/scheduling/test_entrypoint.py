@@ -1,6 +1,7 @@
 # tests/scheduling/test_entrypoint.py
 from marketwind.scout.domain import FloorResult
-from marketwind.scheduling.__main__ import build_parser, want_real_send, floor_line, floor_exit_code, want_scheduler
+from marketwind.scheduling.outcome import RunOutcome
+from marketwind.scheduling.__main__ import build_parser, want_real_send, floor_line, floor_exit_code, want_scheduler, outcome_line
 
 
 def _parse(argv):
@@ -32,6 +33,10 @@ def test_floor_only_flag_parses():
     assert _parse(["--floor-only"]).floor_only is True
 
 
+def test_force_fresh_flag_parses():
+    assert _parse(["--force-fresh"]).force_fresh is True
+
+
 def test_floor_line_reports_all_three_metrics():
     line = floor_line(FloorResult(grounded_quotes=9, primary_traced_quotes=2,
                                   independent_outlets=3, passed=True))
@@ -44,6 +49,15 @@ def test_exit_code_zero_on_pass_nonzero_on_subfloor():
     bad = FloorResult(grounded_quotes=3, primary_traced_quotes=0, independent_outlets=1, passed=False)
     assert floor_exit_code(ok) == 0
     assert floor_exit_code(bad) != 0
+
+
+def test_outcome_line_includes_status_and_detail():
+    line = outcome_line(RunOutcome("skipped_stale", detail="past ceiling 10:00 CST (now 19:55)"))
+    assert line == "skipped_stale: past ceiling 10:00 CST (now 19:55)"
+
+
+def test_outcome_line_status_only_when_no_detail():
+    assert outcome_line(RunOutcome("published")) == "published"
 
 
 def test_scheduler_flag_routes_to_daemon():

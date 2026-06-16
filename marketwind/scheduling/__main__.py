@@ -3,6 +3,7 @@
   python -m marketwind.scheduling.run_once            # real send
   ... --dry-run                                       # route to StubSink
   ... --force-calendar                                # run on a non-trading day (implies --dry-run)
+  ... --force-fresh                                   # bypass the freshness window (off-hours rehearsal)
   ... --force-calendar --send-real                    # forced AND real send
 """
 from __future__ import annotations
@@ -10,12 +11,15 @@ from __future__ import annotations
 import argparse
 
 from marketwind.scout.domain import FloorResult
+from marketwind.scheduling.outcome import RunOutcome
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="marketwind.scheduling.run_once")
     p.add_argument("--force-calendar", action="store_true",
                    help="run even on a non-trading day (implies --dry-run unless --send-real)")
+    p.add_argument("--force-fresh", action="store_true",
+                   help="bypass the freshness window for a manual off-hours rehearsal (the daemon never sets this)")
     p.add_argument("--dry-run", action="store_true", help="route sends to StubSink")
     p.add_argument("--send-real", action="store_true",
                    help="with --force-calendar, actually send instead of dry-run")
@@ -43,6 +47,13 @@ def floor_line(result: FloorResult) -> str:
 def floor_exit_code(result: FloorResult) -> int:
     """0 if the floor check passed, 1 otherwise."""
     return 0 if result.passed else 1
+
+
+def outcome_line(outcome: RunOutcome) -> str:
+    """One human-readable line summarising a RunOutcome (loud skip surfacing)."""
+    if outcome.detail is None:
+        return outcome.status
+    return f"{outcome.status}: {outcome.detail}"
 
 
 def want_real_send(args: argparse.Namespace) -> bool:
@@ -143,7 +154,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
 
         hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
         label_prefix = DEV_PREFIX if settings.report_dev_label else ""
-        await run_once(now, sessions=sessions, anchor=anchor,
+        outcome = await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
                        ceiling_cst=time(hh, mm), gather=_gather,
                        draft=_draft, judge=call_judge, record_fail=_record_fail,
@@ -151,7 +162,9 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
                        primary=primary, fallback=fallback,
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
                        force_calendar=args.force_calendar,
+                       force_fresh=args.force_fresh,
                        label_prefix=label_prefix)
+        print(outcome_line(outcome))
     finally:
         await conn.close()
 

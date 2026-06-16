@@ -149,6 +149,7 @@ async def _never() -> bool:
 
 
 async def _run(now, *, gather, draft, primary, fallback, force=False,
+               force_fresh=False,
                tol=90, anchor=_ANCHOR, judge=None, record_fail=None,
                already_published=None):
     if judge is None:
@@ -163,7 +164,8 @@ async def _run(now, *, gather, draft, primary, fallback, force=False,
                           judge=judge, record_fail=record_fail,
                           primary=primary, fallback=fallback,
                           already_published=already_published,
-                          trace_id="t", force_calendar=force)
+                          trace_id="t", force_calendar=force,
+                          force_fresh=force_fresh)
 
 
 async def test_non_trading_day_returns_skipped_calendar():
@@ -187,6 +189,16 @@ async def test_stale_run_returns_skipped_stale():
     assert out.detail and "late" in out.detail   # staleness reason threaded into detail
     assert gcalls == []
     assert draft_calls == []
+
+
+async def test_force_fresh_bypasses_stale_window():
+    primary, gcalls, draft_calls = StubSink(), [], []
+    late = _ANCHOR + timedelta(minutes=200)  # same staleness as the skip test
+    out = await _run(late, gather=_gather_returning(_passing_sources(), gcalls),
+                     draft=_draft(draft_calls), primary=primary,
+                     fallback=StubSink(), force_fresh=True)
+    assert out.status == "published"
+    assert gcalls == [1]                                   # gather ran (stale gate bypassed)
 
 
 async def test_above_floor_publishes_and_returns_published():

@@ -34,13 +34,14 @@ async def run_once(now: datetime, *,
                    fallback: IMChannel,
                    trace_id: str,
                    force_calendar: bool = False,
+                   force_fresh: bool = False,
                    label_prefix: str = DEV_PREFIX) -> RunOutcome:
     async with _RUN_LOCK:
         if not force_calendar and not is_trading_session(now.astimezone(CN_TZ).date(), sessions):
             return RunOutcome(SKIPPED_CALENDAR)
         fresh, reason = freshness_ok(now, anchor, tolerance_min=tolerance_min,
                                      ceiling_cst=ceiling_cst)
-        if not fresh:
+        if not force_fresh and not fresh:
             return RunOutcome(SKIPPED_STALE, detail=reason)
         sources = await gather()
         return await run_pipeline(sources=sources, draft=draft, judge=judge,
