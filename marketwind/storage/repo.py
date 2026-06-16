@@ -48,6 +48,14 @@ async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
         return str(source_id)
 
 
+async def persist_enriched(conn: asyncpg.Connection, sources: list[Source]) -> None:
+    """Re-upsert each enriched Source so its quotes' attached_primary_url reaches
+    the DB — the Writer's load_pool reads the pool from the DB, so primaries
+    attached only in memory by enrich_primary would otherwise be lost. No-op on []."""
+    for src in sources:
+        await upsert_source(conn, src)
+
+
 async def load_pool(conn: asyncpg.Connection) -> list[PooledSource]:
     """Load the persisted quote pool with real DB UUIDs (Writer input)."""
     src_rows = await conn.fetch(

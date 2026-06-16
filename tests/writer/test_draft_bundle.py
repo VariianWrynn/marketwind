@@ -129,8 +129,11 @@ async def test_bundle_carries_output_and_pool(monkeypatch):
     dummy_conn = object()
     bundle = await draft_report(dummy_conn, call=_stub_call)
 
-    # pool identity
-    assert bundle.pool is _CANNED_POOL
+    # eligible_pool returns a filtered copy (I3 mitigation), so object identity no
+    # longer holds; assert the pool is carried through by content. Both canned
+    # quotes survive: QUO-1 is a primary-backed quant quote, QUO-2 is non-quant.
+    assert [s.source_id for s in bundle.pool] == ["SRC-A"]
+    assert [q.quote_id for q in bundle.pool[0].quotes] == ["QUO-1", "QUO-2"]
     assert len(bundle.pool) == 1
 
     # output is a WriterOutput with our claim

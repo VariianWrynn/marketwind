@@ -76,6 +76,7 @@ async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - 
     from marketwind.scout.cninfo_pdf import fetch_cninfo_disclosure
     from marketwind.scout.market import fetch_star50_constituents
     from marketwind.scout.primary import trace_to_primary
+    from marketwind.storage.repo import persist_enriched
 
     constituents = fetch_star50_constituents()
 
@@ -90,6 +91,8 @@ async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - 
         async def _fetch(url):
             return await fetch_cninfo_disclosure(client, url)
 
-        return await enrich_primary(sources, classify=_classify, trace=_trace,
-                                    fetch=_fetch, constituents=constituents,
-                                    on_date=on_date)
+        enriched = await enrich_primary(sources, classify=_classify, trace=_trace,
+                                        fetch=_fetch, constituents=constituents,
+                                        on_date=on_date)
+        await persist_enriched(conn, enriched)
+        return enriched
