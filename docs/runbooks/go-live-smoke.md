@@ -39,9 +39,9 @@ grounded=<g> primary=<p> outlets=<o> passed=<bool>
 
 ## Stage 2 — One real end-to-end push + DEV-label decision (G0.4)
 
-### ⚠ Precondition (known blocker discovered 2026-06-13)
+### ✅ Precondition RESOLVED (fixed in commit `f6f6b64`)
 
-`main()` in `marketwind/scheduling/__main__.py` calls `run_once(...)` **without** the required `already_published=` argument (a latent gap from P2b, when `already_published` was added to `run_once`). As written, the command below raises `TypeError: ... missing ... 'already_published'` before any send. **This must be fixed first** (see "Stage-2 precondition fix" at the bottom of this runbook). The fix is a one-liner closure; it is tracked separately because it touches the financial-publish idempotency seam and needs an explicit owner call on semantics.
+The former blocker — `main()` calling `run_once(...)` without the required `already_published=` argument — **is fixed**. `main()` now builds an `_already()` closure (mirrors `dispatch_job`'s, querying `get_run_status(... == PUBLISHED)`, preserving the double-publish guard) and passes it into `run_once`. The Stage-2 command below runs as written; **no precondition fix is needed.**
 
 ### Run
 
@@ -99,22 +99,9 @@ WeCom is not yet configured, so the hermes/WeChat fallback is `StubSink`. If the
 
 ---
 
-## Stage-2 precondition fix (apply before Stage 2)
+## Stage-2 precondition fix — DONE (commit `f6f6b64`)
 
-In `marketwind/scheduling/__main__.py::main`, the `run_once(...)` call needs an `already_published` closure. Recommended fix (mirrors `dispatch_job`'s `_already`, preserving the system-wide double-publish guard):
-
-```python
-from marketwind.storage.repo import get_run_status
-from marketwind.scheduling.outcome import PUBLISHED
-from marketwind.scout.timeparse import CN_TZ
-
-trading_date = now.astimezone(CN_TZ).date()
-async def _already() -> bool:
-    return (await get_run_status(conn, job_id="premarket", trading_date=trading_date)) == PUBLISHED
-# ... then pass already_published=_already into run_once(...)
-```
-
-Alternative (simpler, **loses** idempotency for the manual path): `async def _already(): return False`. Not recommended for a financial-publish path. Decide explicitly and record the choice.
+This section is retained for history. The `already_published` closure described here was applied to `marketwind/scheduling/__main__.py::main` in commit `f6f6b64` — it queries `get_run_status(... ) == PUBLISHED`, preserving the double-publish guard for the manual path. The Stage-2 command needs no further preparation.
 
 ---
 

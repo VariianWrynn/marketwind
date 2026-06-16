@@ -24,9 +24,9 @@
 - **Restart durability.** The `scheduler` service is `restart: unless-stopped`; on reboot `catch_up` reconciles and the unique `(job_id, trading_date)` ledger constraint prevents a duplicate publish for an already-published day (exercised by smoke Stage 3's `docker restart`).
 - **Freshness preserved.** `run_scheduler`'s per-fire `_gather(fire_now, fire_prev)` is untouched — a long-running daemon never serves stale boot-day data.
 
-## Known blocker (surfaced, not silently dropped)
+## Known blocker — RESOLVED (commit `f6f6b64`)
 
-- **`main()` is missing `already_published` in its `run_once(...)` call** — a latent gap from P2b. As written, `python -m marketwind.scheduling --send-real` (smoke **Stage 2**) raises `TypeError` before any send. Recommended one-liner fix (mirrors `dispatch_job`'s `_already`, preserving the double-publish guard) is documented in `docs/runbooks/go-live-smoke.md` → "Stage-2 precondition fix". Must be applied before Stage 2. Not auto-fixed here: it touches the financial-publish idempotency seam and wants an explicit owner call on semantics.
+- **`main()` was missing `already_published` in its `run_once(...)` call** — a latent gap from P2b. ✅ **Fixed in `f6f6b64`:** `main()` now builds an `_already()` closure (queries `get_run_status(...) == PUBLISHED`, preserving the double-publish guard) and passes it into `run_once`. `python -m marketwind.scheduling --send-real` (smoke **Stage 2**) no longer raises `TypeError`; the Stage-2 path is unobstructed.
 
 ## Deferred (recorded, not dropped)
 
