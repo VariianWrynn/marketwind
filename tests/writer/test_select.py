@@ -61,3 +61,17 @@ def test_secondary_domain_quant_without_primary_still_dropped():
                          raw_content="x")]
     out = eligible_pool(pool)
     assert [q.quote_id for s in out for q in s.quotes] == ["Q4"]  # quant dropped, non-quant kept
+
+
+def test_officially_verified_includes_designated_excludes_trusted_only():
+    from marketwind.writer.select import officially_verified_claims
+    from marketwind.writer.domain import DraftClaim, WriterOutput
+    pool = [
+        PooledSource("S1", "https://cs.com.cn/a", "cs.com.cn", False,
+                     [PooledQuote("Q1", "0.36%", True, "data", None, 0, 4)], raw_content="0.36"),
+        PooledSource("S2", "https://finance.sina.com.cn/a", "finance.sina.com.cn", False,
+                     [PooledQuote("Q2", "0.36%", True, "data", None, 0, 4)], raw_content="0.36"),
+    ]
+    out = WriterOutput(
+        claims=[DraftClaim("c1", "x", ["Q1"]), DraftClaim("c2", "y", ["Q2"])], sentences=[])
+    assert officially_verified_claims(out, pool) == {"c1"}  # cs.com.cn DESIGNATED only

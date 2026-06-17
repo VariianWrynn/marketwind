@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from marketwind.storage.repo import load_pool, persist_report
 from marketwind.writer.domain import DraftBundle
 from marketwind.writer.render import render_brief
-from marketwind.writer.select import eligible_pool
+from marketwind.writer.select import eligible_pool, officially_verified_claims
 from marketwind.writer.writer import assemble
 
 CallFn = Callable[[list[dict]], Awaitable[str]]
@@ -30,7 +30,8 @@ async def draft_report(conn, *, call: CallFn, max_chars: int = 500) -> DraftBund
     # the original behavior was just the unfiltered `pool = await load_pool(conn)`.
     pool = eligible_pool(pool)
     output = await assemble(pool, call=call)
-    brief = render_brief(output, max_chars=max_chars)
+    official_ids = officially_verified_claims(output, pool)
+    brief = render_brief(output, max_chars=max_chars, official_ids=official_ids)
 
     async def _commit() -> str:
         return await persist_report(conn, output.claims, brief.sentences)

@@ -13,8 +13,10 @@ from marketwind.writer.domain import RenderedBrief, RenderedSentence, WriterOutp
 MAX_CHARS = 500
 
 
-def _render_kept(sentences) -> tuple[list[RenderedSentence], list[tuple[int, str]]]:
-    """Assign [n] over the given sentences; return rendered sentences + footnotes."""
+def _render_kept(sentences, official_ids) -> tuple[list[RenderedSentence], list[tuple[int, str]]]:
+    """Assign [n] over the given sentences; return rendered sentences + footnotes.
+    For factual sentences where all claim_ids are in official_ids, append '✓官方核实'.
+    """
     order: list[str] = []          # source_id in first-appearance order
     rendered: list[RenderedSentence] = []
     for pos, s in enumerate(sentences):
@@ -24,6 +26,8 @@ def _render_kept(sentences) -> tuple[list[RenderedSentence], list[tuple[int, str
                 if sid not in order:
                     order.append(sid)
                 text += f"[{order.index(sid) + 1}]"
+            if s.claim_ids and all(cid in official_ids for cid in s.claim_ids):
+                text += "✓官方核实"
         rendered.append(
             RenderedSentence(
                 text=text, claim_ids=list(s.claim_ids),
@@ -35,10 +39,10 @@ def _render_kept(sentences) -> tuple[list[RenderedSentence], list[tuple[int, str
     return rendered, footnotes
 
 
-def render_brief(output: WriterOutput, max_chars: int = MAX_CHARS) -> RenderedBrief:
+def render_brief(output: WriterOutput, max_chars: int = MAX_CHARS, official_ids: set[str] = frozenset()) -> RenderedBrief:
     kept = list(output.sentences)
     while True:
-        rendered, footnotes = _render_kept(kept)
+        rendered, footnotes = _render_kept(kept, official_ids)
         body = "".join(r.text for r in rendered)
         if len(body) <= max_chars or not kept:
             return RenderedBrief(body=body, sentences=rendered, footnotes=footnotes)

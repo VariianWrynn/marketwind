@@ -14,8 +14,29 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from marketwind.scout.source_tier import SourceTier, classify, clears_law3
-from marketwind.writer.domain import PooledSource
+from marketwind.scout.source_tier import SourceTier, classify, clears_law3, is_officially_verified
+from marketwind.writer.domain import PooledSource, WriterOutput
+
+
+def officially_verified_claims(output: WriterOutput, pool: list[PooledSource]) -> set[str]:
+    """Return the set of claim.local_id for every claim backed by ≥1 quote whose
+    owning source satisfies is_officially_verified(domain, is_primary, attached_primary_url).
+    """
+    # Build quote_id -> (quote, source) index from the pool
+    index: dict[str, tuple] = {
+        q.quote_id: (q, s)
+        for s in pool
+        for q in s.quotes
+    }
+    result: set[str] = set()
+    for claim in output.claims:
+        for qid in claim.quote_ids:
+            if qid in index:
+                quote, source = index[qid]
+                if is_officially_verified(source.domain, source.is_primary, quote.attached_primary_url):
+                    result.add(claim.local_id)
+                    break
+    return result
 
 
 def eligible_pool(pool: list[PooledSource]) -> list[PooledSource]:

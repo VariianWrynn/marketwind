@@ -1,4 +1,4 @@
-from marketwind.writer.domain import DraftSentence, WriterOutput
+from marketwind.writer.domain import DraftClaim, DraftSentence, WriterOutput
 from marketwind.writer.render import MAX_CHARS, render_brief
 
 
@@ -52,3 +52,19 @@ def test_empty_output_renders_empty():
     brief = render_brief(_out([]))
     assert brief.body == ""
     assert brief.sentences == []
+
+
+def test_marker_on_official_sentence_only():
+    out = WriterOutput(
+        claims=[DraftClaim("c1", "科创50涨0.36%", ["Q1"])],
+        sentences=[DraftSentence("科创50涨0.36%。", ["c1"], ["S1"], "factual")])
+    brief = render_brief(out, official_ids={"c1"})
+    assert "✓官方核实" in brief.body
+
+
+def test_no_marker_when_not_official():
+    out = WriterOutput(
+        claims=[DraftClaim("c1", "科创50涨0.36%", ["Q1"])],
+        sentences=[DraftSentence("科创50涨0.36%。", ["c1"], ["S1"], "factual")])
+    brief = render_brief(out, official_ids=set())
+    assert "✓官方核实" not in brief.body
