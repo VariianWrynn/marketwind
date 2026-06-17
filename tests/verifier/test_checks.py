@@ -207,6 +207,25 @@ class TestCheckQuantHasPrimary:
         assert violations == []
 
 
+def test_trusted_domain_quant_does_not_violate_i3():
+    pool = [PooledSource("S1", "https://finance.sina.com.cn/a", "finance.sina.com.cn",
+                         False, [PooledQuote("Q1", "0.36%", True, "data", None, 0, 4)],
+                         raw_content="0.36")]
+    idx = index_quotes(pool)
+    out = WriterOutput(claims=[DraftClaim("c1", "科创50涨0.36%", ["Q1"])], sentences=[])
+    assert check_quant_has_primary(out, idx) == []  # no I3 (TRUSTED clears)
+
+
+def test_unknown_domain_quant_still_violates_i3():
+    pool = [PooledSource("S2", "https://randomblog.example/a", "randomblog.example",
+                         False, [PooledQuote("Q2", "0.36%", True, "data", None, 0, 4)],
+                         raw_content="0.36")]
+    idx = index_quotes(pool)
+    out = WriterOutput(claims=[DraftClaim("c2", "某数字0.36%", ["Q2"])], sentences=[])
+    v = check_quant_has_primary(out, idx)
+    assert len(v) == 1 and v[0].check == "I3"
+
+
 # ---------------------------------------------------------------------------
 # check_no_filler_attribution — RF-4
 # ---------------------------------------------------------------------------

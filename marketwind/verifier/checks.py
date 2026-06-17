@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from marketwind.scout.source_tier import clears_law3
 from marketwind.verifier.domain import Violation
 from marketwind.writer.domain import PooledQuote, PooledSource, WriterOutput
 
@@ -81,7 +82,7 @@ def check_quant_has_primary(
             quote, source = pool_index[qid]
             if quote.is_quantitative:
                 has_quant = True
-            if quote.attached_primary_url or source.is_primary:
+            if clears_law3(source.domain, source.is_primary, quote.attached_primary_url):
                 has_primary = True
         if has_quant and not has_primary:
             violations.append(Violation(
