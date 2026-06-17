@@ -14,7 +14,7 @@ Every module, prompt, and spec must use the definitions here. Wording drift of t
 
 | Term | Definition |
 |---|---|
-| **Primary source** | Information directly from the entity itself: company announcements (巨潮 / HKEX / SEC), financial reports (10-Q / 10-K / annual), regulatory filings (CSRC / PBoC / MIIT / NFRA / CAC), the company's official site or verified official account, government postings |
+| **Primary source** | (**Tier 0 / OFFICIAL — definition unchanged by ADR-0003**) Information directly from the entity itself: company announcements (巨潮 / HKEX / SEC), financial reports (10-Q / 10-K / annual), regulatory filings (CSRC / PBoC / MIIT / NFRA / CAC), the company's official site or verified official account, government postings. See the **Source tiers** boundary note for how "primary-*grade*" (the I3 gate) widens beyond this without moving this definition. |
 | **Independent source** | Different `domain` **AND** different `byline`. Judged as **AND**, not OR. The same piece reprinted (even on a different domain) counts as the same source; the same reporter across platforms (even different domains) counts as the same source. |
 | **Quoted inference** | An inference the source itself made in its own text. The Writer must preserve attribution when quoting it (e.g. 据 XX 证券研报观点). Legal; maps to Claim category `quoted_inference`. |
 | **Model inference** | An inference an LLM generates from general knowledge or by combining facts. **Forbidden.** Includes A → B logical derivation (even if necessary), cross-source synthesis, "common sense" completion of what the source didn't state, and judgments after lead-ins like "显然/必然". |
@@ -81,6 +81,36 @@ Each claim's `time_window` names the temporal window the fact belongs to. I10 / 
 | `undated` | no clear time (avoid; the Writer should return to Scout for time metadata) |
 
 **Real case** (5/28 quote pool): item 1 "隔夜半导体领跌" = `overnight_us`; item 6 "周二费半涨近6%" = also US but a **different trading day**, so it needs day-level disambiguation. The two are opposite-direction but not contradictory — once `time_window` is aligned they fall in different windows and pass. A naive contradiction check would misfire RF-7, which is why I10 must be time-window-aware.
+
+### Source tiers (ADR-0003)
+
+A 5-tier authority model over a source's `domain`, grounded in the CSRC
+Information-Disclosure Provisions + Securities Law Art. 86 (not taste). Implemented as
+`marketwind/scout/source_tier.py::classify` (subdomain-aware suffix match; the denylist is
+checked **first**; unknown domains **default-deny** to EXCLUDED).
+
+| Tier | Name | Who | Example domains |
+|---|---|---|---|
+| 4 | **OFFICIAL** | the disclosing entity / venue / regulator (= the **Primary source** definition above, Tier 0) | `cninfo.com.cn`, `sse.com.cn`, `szse.cn`, `csrc.gov.cn`, `pbc.gov.cn` |
+| 3 | **DESIGNATED** | CSRC-designated disclosure newspapers | `cs.com.cn`, `cnstock.com`, `stcn.com`, `zqrb.cn`, `jjckb.cn` |
+| 2 | **TRUSTED** | curated mainstream financial outlets | `finance.sina.com.cn`, `yicai.com`, `cls.cn`, `caixin.com` |
+| 1 | **SECONDARY** | reputable general/financial media (may report, may **not** back a number) | `finance.eastmoney.com`, `news.cn`, `jiemian.com`, `thepaper.cn` |
+| 0 | **EXCLUDED** | denylisted forums/aggregators + every unknown domain | `guba.eastmoney.com`, `xueqiu.com`, anything unlisted |
+
+Two predicates derive from the tier:
+
+- **primary-grade** — clears the **I3 gate** (a quant claim may be backed):
+  `attached_primary_url is not None OR is_primary OR tier ≥ TRUSTED`
+  (`source_tier.clears_law3`). Used identically by `writer.select.eligible_pool` and
+  `verifier.checks.check_quant_has_primary`, so a claim that survives selection cannot
+  fail I3.
+- **officially-verified** — earns the reader badge **`✓官方核实`**:
+  `… OR tier ≥ DESIGNATED` (`source_tier.is_officially_verified`). **TRUSTED clears the
+  gate but NOT the badge** — that gap is the honest signal separating "may back a number"
+  from "officially corroborated". The badge is mechanical / non-LLM (Law-4 safe).
+
+Note "primary source" (Tier 0, unchanged) vs "primary-*grade*" (the widened gate, tier ≥
+TRUSTED) are deliberately distinct terms; ADR-0003 widened the *gate*, not the *definition*.
 
 ### "Verified" — what it means here
 

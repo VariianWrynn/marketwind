@@ -35,6 +35,7 @@
 | G2.3 | **Claim state machine** (drafted→verified/failed→rewritten, retry ≤ 1), failure-rate thresholds (D-4/D-8), re-run loops, 800-char digest. | `verifier-law5-gate.md`; `DECISIONS.md` D-4/D-8/D-9 | `claim_failures` currently persists violations only; the full state machine is Tier-3. |
 | G2.4 | **Mojibake H-share / image-only disclosure PDFs** → garbled/empty extract → no-attach. **No OCR by design** (OCR'ing financial digits is a Law-3 risk). | `primary-tracing.md` open gaps | Permanent lower-recall edge; fail-closed. Likely never "fixed" — listed so it's not rediscovered. |
 | G2.5 | **Live per-site `publish_ts` parsing** — per-source work deferred past the P1a smoke. | `P1a-scout.md` | Affects I5/I9 freshness metadata fidelity. |
+| G2.6 | **`tests/citation_ground_truth/` regression runner is unbuilt** — `make test-gt` is a P2 stub (`exit 1`); the directory holds only `samples.md` (labeled samples, no executable runner). Consequence: contract changes that *should* be sample-gated (CLAUDE.md §8.2; DECISIONS ADR step 3) **cannot be mechanically regression-checked** — the v0.5 bump (ADR-0003) shipped gated only by the full pytest suite, with this gap surfaced rather than faked. | `CLAUDE.md` §8.2; ADR-0003; `tests/citation_ground_truth/samples.md` | The labeled REDs exist; only the runner that scores Writer/Verifier output against them is missing. Build it before the next contract-semantics change. |
 
 ## Tier 3 — Product second half (inbound / two-way)
 

@@ -2,8 +2,10 @@
 
 > **Read when:** before touching any report-generation, citation, or verification logic. This is the root spec; all module specs, prompts, verifier rules, and skills must reference it.
 
-**Status**: Active · **Version**: 0.4 · **Last Updated**: 2026-05-29
+**Status**: Active · **Version**: 0.5 · **Last Updated**: 2026-06-17
 **Scope**: Root spec for the MarketWind (市风) morning-report agent.
+
+**v0.5 changelog** ([ADR-0003](docs/adr/0003-trusted-outlet-primary-grade-tier.md)): I3's `has_primary` is now satisfied by a **primary-grade** source — a 5-tier source-authority model (`marketwind/scout/source_tier.py`) treats CSRC-designated (Tier 3) and curated-trusted (Tier 2) disclosure outlets as able to back a quantitative claim, since the live Tier-0 supply is near zero (Bocha can't reach cninfo). The Tier-0 "Primary source" definition is **unchanged**; a mechanical `✓官方核实` reader badge (tier ≥ DESIGNATED) keeps the genuine-primary signal honest. The contract bump was **not** mechanically regression-gated — the `tests/citation_ground_truth/` runner is unbuilt (gap G2.6); surfaced loudly, not faked. See glossary "Source tiers".
 
 **v0.4 changelog**: model layer is now DeepSeek V4 Pro across all roles including the judge (supersedes the former Sonnet-judge decision; tokens are unlimited so the cost gate is dissolved). Overseas-site crawling is dropped, but domestic-media coverage of overseas markets is retained. See `DECISIONS.md`.
 
@@ -143,7 +145,7 @@ Violating any invariant → auto-reject. Exemptions go through the ADR process (
 |---|---|---|---|
 | **I1** | All claims cited by one sentence must be semantically aligned (no cross-claim synthesis) | Verifier post-write | `verifier.check_no_synthesis(sentence)` |
 | **I2** | A claim's `corroboration_count` is de-duplicated per the glossary independent-source rule; reprints/aggregation do not add to the count | Verifier pre-write | `verifier.compute_corroboration(claim)` |
-| **I3** | `quantitative` claims must have `has_primary = true` | DB CHECK | `verifier.check_quant_has_primary(claim)` |
+| **I3** | `quantitative` claims must have `has_primary = true` — (v0.5, [ADR-0003](docs/adr/0003-trusted-outlet-primary-grade-tier.md)) `has_primary` is satisfied by a **primary-grade** source (`tier ≥ TRUSTED`, per `source_tier.clears_law3`) as well as a true attached primary or `is_primary`; an unknown/EXCLUDED domain still fails | DB CHECK | `verifier.check_quant_has_primary(claim)` |
 | **I3b** | `quantitative` claims must have `corroboration_count ≥ 2` or `corroboration_status = 'attributed_single'` (single-source quant must carry an attribution prefix) | DB CHECK | `verifier.check_quant_corroboration(claim)` |
 | **I4** | No model-generated inference; only `quoted_inference` is allowed, and source attribution must be preserved in the body text | Writer prompt + Verifier | `verifier.check_inference_attribution(claim, sentence)` |
 | **I5** | Source `publish_ts` must be ISO 8601 + tz | Scout ingest | `scout.validate_timestamp(source)` |

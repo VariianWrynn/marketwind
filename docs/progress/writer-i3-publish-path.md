@@ -37,6 +37,8 @@ PYTHONPATH=. .venv/Scripts/python.exe -m pytest -p no:cacheprovider -q \
 
 ## Out of scope / still open — the recall lever
 
+> **Follow-up taken (2026-06-17):** the recall lever below was pursued via the **source-tier primary-grade** design — see `docs/progress/source-tier-primary-grade.md` and [ADR-0003](../adr/0003-trusted-outlet-primary-grade-tier.md). Instead of waiting on cninfo PDF number-matching, it widens "primary-grade" (the I3 gate) to CSRC-designated + curated-trusted outlets, sets `is_primary=True` for official-venue sources at ingest (the 2nd bullet below, now built), and drops the Bocha query-biasing lever (3rd bullet — the spike proved near-zero ROI).
+
 The filter makes the pipeline **lawful**; it does not make the brief **rich**. Richness needs more primary-backed quotes surviving the filter — i.e. higher primary-tracing recall. Today the *only* live route to a primary-backed quote is "secondary outlet → cninfo PDF whose number matches" (`source.is_primary` is defined and honored by the Verifier but **never set `True` anywhere in gather/enrich** — that branch is dead live). Higher-leverage follow-ups, in order:
 
 - **G1.1** activate the DeepSeek fallback classifier (`enrich.py::_classify` is stubbed to `None`; quotes only enter the funnel via strict rules now) — likely the biggest recall unlock.
