@@ -14,6 +14,7 @@ from marketwind.scout.clean import clean_main_content, extract_quotes
 from marketwind.scout.domain import Quote, Source
 from marketwind.scout.outlets import domain_of, is_quote_aggregator
 from marketwind.scout.query import build_constituent_queries, build_recap_queries
+from marketwind.scout.source_tier import SourceTier, classify
 
 # Per-query fetch cap: take only the top-N (most-relevant) hits per query before
 # the expensive Playwright fetch. Bocha returns by relevance, so the top few hold
@@ -47,7 +48,8 @@ async def build_pool(*, prev_session: date, names: list[str] = (), search: Searc
             if not quotes:
                 continue
             src = Source(url=url, domain=domain_of(url), publish_ts=now,
-                         raw_content=raw, quotes=quotes)
+                         raw_content=raw, quotes=quotes,
+                         is_primary=classify(domain_of(url)) >= SourceTier.OFFICIAL)
             await persist(src)
             out.append(src)
     return out
