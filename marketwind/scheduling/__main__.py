@@ -107,7 +107,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
     from marketwind.scout.gather import gather_live
     from marketwind.scout.enrich import enrich_primary_live
 
-    from marketwind.gateway.im.label import DEV_PREFIX
+    from marketwind.gateway.im.label import DEV_PREFIX, MAX_TOTAL
 
     args = build_parser().parse_args(argv)
     now = datetime.now(timezone.utc)
@@ -130,13 +130,18 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
         from marketwind.writer.client import call_deepseek
         from marketwind.writer.runner import draft_report
         from marketwind.verifier.runner import call_judge
-        from marketwind.storage.repo import record_verifier_failures
+        from marketwind.storage.repo import record_verifier_failures, record_rejected_draft
+
+        label_prefix = DEV_PREFIX if settings.report_dev_label else ""
 
         async def _draft():
-            return await draft_report(conn, call=call_deepseek)
+            # Reserve the label's characters up front so body + label <= MAX_TOTAL (P1c).
+            return await draft_report(conn, call=call_deepseek,
+                                      max_chars=MAX_TOTAL - len(label_prefix))
 
-        async def _record_fail(trace_id, violations):
+        async def _record_fail(trace_id, violations, output):
             await record_verifier_failures(conn, trace_id, violations)
+            await record_rejected_draft(conn, trace_id, output)
 
         # Idempotency guard mirroring dispatch_job._already: a manual re-run on an
         # already-published day must not double-publish (P2b single-sender invariant).
@@ -153,7 +158,6 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
             return status == PUBLISHED
 
         hh, mm = (int(x) for x in settings.freshness_ceiling_cst.split(":"))
-        label_prefix = DEV_PREFIX if settings.report_dev_label else ""
         outcome = await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
                        ceiling_cst=time(hh, mm), gather=_gather,
@@ -185,9 +189,9 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     from marketwind.writer.client import call_deepseek
     from marketwind.writer.runner import draft_report
     from marketwind.verifier.runner import call_judge
-    from marketwind.storage.repo import record_verifier_failures
+    from marketwind.storage.repo import record_verifier_failures, record_rejected_draft
 
-    from marketwind.gateway.im.label import DEV_PREFIX
+    from marketwind.gateway.im.label import DEV_PREFIX, MAX_TOTAL
 
     # ADR-0002: WeChat (hermes) is the unattended PRIMARY; WeCom-webhook is the backup.
     live = settings.model_copy(update={"im_channel": "hermes_weixin"})
@@ -216,13 +220,16 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             pool = await gather_live(conn, now=g_now, prev_session=g_prev)
             return await enrich_primary_live(conn, pool, on_date=g_prev)
 
-        async def _draft():
-            return await draft_report(conn, call=call_deepseek)
-
-        async def _record_fail(trace_id, violations):
-            await record_verifier_failures(conn, trace_id, violations)
-
         label_prefix = DEV_PREFIX if settings.report_dev_label else ""
+
+        async def _draft():
+            # Reserve the label's characters up front so body + label <= MAX_TOTAL (P1c).
+            return await draft_report(conn, call=call_deepseek,
+                                      max_chars=MAX_TOTAL - len(label_prefix))
+
+        async def _record_fail(trace_id, violations, output):
+            await record_verifier_failures(conn, trace_id, violations)
+            await record_rejected_draft(conn, trace_id, output)
 
         # Boot reconciliation: boot-time now/prev is correct here.
         await catch_up(
