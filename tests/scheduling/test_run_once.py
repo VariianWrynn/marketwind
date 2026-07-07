@@ -269,8 +269,8 @@ async def test_verify_fail_returns_outcome():
     draft_calls = []
     record_fail_calls: list = []
 
-    async def _record_fail(trace_id, violations):
-        record_fail_calls.append((trace_id, violations))
+    async def _record_fail(*args):
+        record_fail_calls.append(args)
 
     async def _d():
         draft_calls.append(1)
@@ -285,7 +285,7 @@ async def test_verify_fail_returns_outcome():
     assert "I3" in out.detail
     assert primary.sent == []                              # no publish
     assert len(record_fail_calls) == 1
-    rf_trace, rf_violations = record_fail_calls[0]
+    rf_trace, rf_violations, _rf_output = record_fail_calls[0]
     assert rf_trace == "t"
     assert any(v.check == "I3" for v in rf_violations)
     assert commit_spy["commit_calls"] == 0                 # commit NOT called

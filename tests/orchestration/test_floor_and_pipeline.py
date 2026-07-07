@@ -162,8 +162,8 @@ async def test_verify_fail_returns_outcome_and_records():
     bundle, commit_spy = _make_bundle(_i3_pool())
     recorded: list[tuple] = []
 
-    async def record_fail(trace_id: str, violations) -> None:
-        recorded.append((trace_id, violations))
+    async def record_fail(*args):
+        recorded.append(args)
 
     async def draft() -> DraftBundle:
         return bundle
@@ -181,10 +181,11 @@ async def test_verify_fail_returns_outcome_and_records():
     assert out.status == VERIFY_FAIL
     assert "I3" in out.detail
     assert len(recorded) == 1
-    rf_trace, rf_violations = recorded[0]
-    assert rf_trace == "t-fail"
-    assert len(rf_violations) > 0
-    assert any(v.check == "I3" for v in rf_violations)
+    rf_call = recorded[0]
+    assert len(rf_call) == 3
+    assert rf_call[0] == "t-fail"
+    assert any(v.check == "I3" for v in rf_call[1])
+    assert rf_call[2] is bundle.output
     assert primary.sent == []
     assert commit_spy["commit_calls"] == 0
 

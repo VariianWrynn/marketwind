@@ -5,6 +5,7 @@ catch_up added in Task 9 P2b: boot-time backward reconciliation.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
@@ -24,6 +25,8 @@ from marketwind.scheduling.run_once import run_once
 from marketwind.storage.repo import record_run, get_run_status
 from marketwind.orchestration.runner import send_with_fallback
 from marketwind.scout.timeparse import CN_TZ
+from marketwind.verifier.domain import Violation
+from marketwind.writer.domain import WriterOutput
 
 # Exceptions treated as transient infrastructure failures — eligible for retry.
 # RuntimeError is included because send_with_fallback raises RuntimeError when
@@ -113,7 +116,7 @@ async def dispatch_job(
     gather,
     draft,
     judge,
-    record_fail,
+    record_fail: Callable[[str, list[Violation], WriterOutput], Awaitable[None]],
     primary,
     fallback,
     trace_id: str,
@@ -225,7 +228,7 @@ async def catch_up(
     gather,
     draft,
     judge,
-    record_fail,
+    record_fail: Callable[[str, list[Violation], WriterOutput], Awaitable[None]],
     primary,
     fallback,
     trace_id,

@@ -15,7 +15,7 @@ from marketwind.scout.calendar import is_trading_session
 from marketwind.scout.domain import Source
 from marketwind.scout.timeparse import CN_TZ
 from marketwind.verifier.domain import Violation
-from marketwind.writer.domain import DraftBundle
+from marketwind.writer.domain import DraftBundle, WriterOutput
 
 _RUN_LOCK = asyncio.Lock()
 
@@ -28,7 +28,7 @@ async def run_once(now: datetime, *,
                    gather: Callable[[], Awaitable[list[Source]]],
                    draft: Callable[[], Awaitable[DraftBundle]],
                    judge: Callable[[str], Awaitable[str]],
-                   record_fail: Callable[[str, list[Violation]], Awaitable[None]],
+                   record_fail: Callable[[str, list[Violation], WriterOutput], Awaitable[None]],
                    already_published: Callable[[], Awaitable[bool]],
                    primary: IMChannel,
                    fallback: IMChannel,

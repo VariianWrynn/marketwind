@@ -10,7 +10,7 @@ from marketwind.scout.domain import Source
 from marketwind.scout.runner import evaluate_floor
 from marketwind.verifier.domain import Violation
 from marketwind.verifier.verifier import verify
-from marketwind.writer.domain import DraftBundle
+from marketwind.writer.domain import DraftBundle, WriterOutput
 
 
 def send_with_fallback(text: str, *, primary: IMChannel, fallback: IMChannel,
@@ -30,7 +30,7 @@ async def run_pipeline(
     sources: list[Source],
     draft: Callable[[], Awaitable[DraftBundle]],
     judge: Callable[[str], Awaitable[str]],
-    record_fail: Callable[[str, list[Violation]], Awaitable[None]],
+    record_fail: Callable[[str, list[Violation], WriterOutput], Awaitable[None]],
     already_published: Callable[[], Awaitable[bool]],
     primary: IMChannel,
     fallback: IMChannel,
@@ -60,7 +60,7 @@ async def run_pipeline(
     # 3. Verifier gate (hardcoded — Law 5, cannot be bypassed)
     result = await verify(bundle.output, bundle.pool, judge=judge)
     if not result.passed:
-        await record_fail(trace_id, result.violations)
+        await record_fail(trace_id, result.violations, bundle.output)
         checks = ",".join(sorted({v.check for v in result.violations}))
         n = len(result.violations)
         detail = f"checks={checks} ({n} violations)"

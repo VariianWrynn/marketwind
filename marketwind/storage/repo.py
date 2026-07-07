@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncpg
+import json
 import uuid
 from datetime import date
 
 from marketwind.scout.domain import Source
 from marketwind.verifier.domain import Violation
-from marketwind.writer.domain import PooledQuote, PooledSource
+from marketwind.writer.domain import PooledQuote, PooledSource, WriterOutput
 
 
 async def upsert_source(conn: asyncpg.Connection, source: Source) -> str:
@@ -164,4 +165,28 @@ async def record_verifier_failures(
         "insert into claim_failures (trace_id, check_name, locus, detail)"
         " values ($1, $2, $3, $4);",
         [(trace_id, v.check, v.locus, v.detail) for v in violations],
+    )
+
+
+async def record_rejected_draft(conn, trace_id: str, output: WriterOutput) -> None:
+    """Persist the full rejected draft as JSON, keyed by trace_id."""
+    payload = {
+        "claims": [
+            {"local_id": c.local_id, "statement": c.statement, "quote_ids": list(c.quote_ids)}
+            for c in output.claims
+        ],
+        "sentences": [
+            {
+                "sentence": s.sentence,
+                "claim_ids": list(s.claim_ids),
+                "source_ids": list(s.source_ids),
+                "sentence_type": s.sentence_type,
+            }
+            for s in output.sentences
+        ],
+    }
+    await conn.execute(
+        "insert into rejected_drafts (trace_id, draft_json) values ($1, $2::jsonb);",
+        trace_id,
+        json.dumps(payload, ensure_ascii=False),
     )
