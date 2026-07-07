@@ -222,6 +222,12 @@ async def run_scheduler() -> None:  # pragma: no cover - live
 
         label_prefix = DEV_PREFIX if settings.report_dev_label else ""
 
+        # Dead-man's switch: per-job external check-in URLs (empty ⇒ disabled).
+        healthcheck_urls = {
+            "premarket": settings.healthcheck_url_premarket,
+            "main": settings.healthcheck_url_main,
+        }
+
         async def _draft():
             # Reserve the label's characters up front so body + label <= MAX_TOTAL (P1c).
             return await draft_report(conn, call=call_deepseek,
@@ -245,6 +251,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             backoff_s=settings.backoff_ceiling_s,
             window=5,
             label_prefix=label_prefix,
+            healthcheck_urls=healthcheck_urls,
         )
 
         async def _dispatch(job_id: str) -> None:
@@ -266,6 +273,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
                 retries=settings.max_transient_retries,
                 backoff_s=settings.backoff_ceiling_s,
                 label_prefix=label_prefix,
+                healthcheck_url=healthcheck_urls.get(job_id, ""),
             )
 
         sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=settings.misfire_grace_s)
