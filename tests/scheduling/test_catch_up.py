@@ -244,3 +244,40 @@ async def test_today_already_recorded_is_not_redispatched(monkeypatch):
     )
     today_rows = [r for r in recorded if r[1] == _TODAY]
     assert today_rows == [], f"expected no new row for today; got {today_rows!r}"
+
+
+async def test_today_delegation_routes_per_job_url(monkeypatch):
+    """premarket-today delegates with the premarket URL; main-today with the main URL."""
+    _, _, fake_get, fake_record = _make_ledger()
+    seen = {}
+    async def stub_dispatch_job(job_id, *, now, conn, sessions, trigger, **kwargs):
+        seen[job_id] = kwargs.get("healthcheck_url")
+        return RunOutcome(PUBLISHED)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.dispatch_job", stub_dispatch_job)
+    await catch_up(
+        sessions=_SESSIONS_5, primary=StubSink(), fallback=StubSink(),
+        healthcheck_urls={"premarket": "http://hc/pre", "main": "http://hc/main"},
+        **_COMMON_KWARGS,
+    )
+    assert seen == {"premarket": "http://hc/pre", "main": "http://hc/main"}
+
+
+async def test_past_missed_does_not_ping(monkeypatch):
+    pings = []
+    _, recorded, fake_get, fake_record = _make_ledger()
+    async def stub_dispatch_job(job_id, *, now, conn, sessions, trigger, **kwargs):
+        return RunOutcome(PUBLISHED)  # today path stubbed; not under test here
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.dispatch_job", stub_dispatch_job)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.check_in", lambda url: pings.append(url))
+    await catch_up(
+        sessions=_SESSIONS_5, primary=StubSink(), fallback=StubSink(),
+        healthcheck_urls={"premarket": "http://hc/pre", "main": "http://hc/main"},
+        **_COMMON_KWARGS,
+    )
+    # 4 past dates x 2 jobs = 8 missed rows written directly by catch_up — none pinged.
+    assert [r for r in recorded if r[2] == "missed"], "sanity: past missed rows were written"
+    assert pings == [], f"past missed reconciliation must not ping; got {pings!r}"

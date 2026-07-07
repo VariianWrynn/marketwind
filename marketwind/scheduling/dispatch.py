@@ -241,6 +241,7 @@ async def catch_up(
     backoff_s,
     window: int = 5,
     label_prefix: str = DEV_PREFIX,
+    healthcheck_urls: dict[str, str] | None = None,
 ) -> list[RunOutcome]:
     """Boot-time backward reconciliation (Task 9 P2b).
 
@@ -283,6 +284,7 @@ async def catch_up(
                     retries=retries,
                     backoff_s=backoff_s,
                     label_prefix=label_prefix,
+                    healthcheck_url=(healthcheck_urls or {}).get(job_id, ""),
                 )
                 outcomes.append(outcome)
             else:
