@@ -16,3 +16,9 @@ def test_p2a_defaults_present_and_correct():
     assert s.main_tolerance_min == 90
     assert s.freshness_ceiling_cst == "10:00"
     assert s.main_report_time_cst == "07:00"
+
+
+def test_healthcheck_urls_default_empty():
+    s = _settings()
+    assert s.healthcheck_url_premarket == ""
+    assert s.healthcheck_url_main == ""

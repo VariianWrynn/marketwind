@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     freshness_ceiling_cst: str = "10:00"
     main_report_time_cst: str = "07:00"
 
+    # Dead-man's switch (out-of-process liveness watchdog). Per-job Healthchecks
+    # ping URLs; empty ⇒ disabled (no external check-in). Set on the report node
+    # only after the second host is provisioned — see docs/runbooks/deadman-switch.md.
+    healthcheck_url_premarket: str = ""
+    healthcheck_url_main: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
