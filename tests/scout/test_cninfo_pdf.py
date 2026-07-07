@@ -150,7 +150,7 @@ async def test_integration_pdf_number_match_attaches_primary():
 
     async def trace(claim_type, symbol, on_date):
         assert (claim_type, symbol) == ("earnings", "688981")
-        return _DETAIL_OK  # a cninfo detail URL → derivable PDF
+        return [_DETAIL_OK]  # candidate cninfo detail URLs → derivable PDF
 
     async def fetch(url):
         return await fetch_cninfo_disclosure(client, url)
@@ -168,7 +168,7 @@ async def test_integration_pdf_wrong_number_does_not_attach():
     client = _FakeClient(_FakeResp(200, pdf))
 
     async def trace(claim_type, symbol, on_date):
-        return _DETAIL_OK
+        return [_DETAIL_OK]
 
     async def fetch(url):
         return await fetch_cninfo_disclosure(client, url)
