@@ -34,6 +34,19 @@ PYTHONPATH=. .venv/Scripts/python.exe -m pytest -p no:cacheprovider -q tests/sch
 
 Offline, no live network: `check_in` takes an injectable `post`; the `dispatch_job`/`catch_up` send path is stub-driven. 73 scheduling tests green (incl. `test_deadman.py`, the four `dispatch_job` ping-contract tests, and the two `catch_up` routing/no-ping tests).
 
+## Live rehearsal — real Healthchecks, real HTTP path (2026-07-07)
+
+Closed the one seam the offline tests can't reach: the `# pragma: no cover` `_http_post` → real Healthchecks ingest → status transition. Stood up self-hosted Healthchecks in Docker on this machine (`docker.1ms.run/healthchecks/healthchecks:latest`, sqlite, port 8001), created the two per-job checks (`premarket`/`main`, period 1 day / grace 3 h) via the Django ORM, and drove the **actual production `check_in()`** — not a mock — against it.
+
+| Direction | Action | Result |
+|---|---|---|
+| **A — delivered run → green** | `check_in('http://localhost:8001/ping/<premarket-uuid>')` (real urllib POST) | `premarket`: `new → up`, `n_pings=1`; untouched `main` stayed `new` (clean control) |
+| **B — silence → down** | backdate `last_ping` past timeout+grace, recompute `alert_after` | `get_status()` → `down` (the state that fires email + Bark) |
+
+The container was a **co-located throwaway** (torn down + volume removed after) — it proves the mechanism, it is **not** the production watcher. A watcher on the report node dies *with* it and cannot cover W1; the real deployment must be off-node (see runbook / deployment decision below).
+
+Environment notes for anyone repeating this: Docker Hub is unreachable from here (GFW) — use the `docker.1ms.run` mirror. In Git Bash, prefix any `docker` command that has leading-slash container paths with `MSYS_NO_PATHCONV=1`, else MSYS rewrites `/data/hc.sqlite` → `C:/Program Files/Git/data/...`. Healthchecks `timeout`/`grace` are `DurationField`s — assign `timedelta`, not int seconds.
+
 ## Out of scope / deferred
 
 - **Second-host provisioning + Healthchecks + email/Bark wiring** — owner-run ops, `docs/runbooks/deadman-switch.md`. The code ships and is testable without it.
