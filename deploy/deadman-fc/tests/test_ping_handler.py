@@ -45,3 +45,16 @@ def test_missing_job_returns_400_and_writes_nothing():
     code = process_ping(s, _cfg(), None, NOW)
     assert code == 400
     assert s.objects == {}
+
+
+class BoomStore(FakeStore):
+    def put(self, key, data):
+        raise RuntimeError("oss write down")
+
+
+def test_oss_write_error_returns_500():
+    # Spec §5.1.5: a failed OSS write must fail loud (500), never silently
+    # accept a ping that did not persist — the daemon reads non-200 and the
+    # deadline is left un-refreshed, trending toward a page (the safe direction).
+    code = process_ping(BoomStore(), _cfg(), "premarket", NOW)
+    assert code == 500
