@@ -1,0 +1,40 @@
+# Dead-man's switch — out-of-process liveness watchdog (G1.3 / P2b item E)
+
+> **Read when:** working on the check-in path, the second-host Healthchecks watcher, or investigating why a missing morning report did (or did not) page the owner externally.
+
+**Status:** daemon-side code complete + tested offline, 2026-07-07. Second-host provisioning is owner-run ops (`docs/runbooks/deadman-switch.md`), deferred — the switch is disabled (empty URL ⇒ no-op) until the owner sets the URLs. Spec: `docs/superpowers/specs/2026-07-07-deadman-switch-design.md`. Plan: `docs/superpowers/plans/2026-07-07-deadman-switch.md`.
+
+**What it delivers:** the daemon checks in to an external Healthchecks watchdog **iff it delivered a message to the owner**. The *absence* of a check-in past the deadline becomes a loud email + Bark page that originates **outside** the node — the only design that can report on a dead node (W1) or a dead push channel (W2).
+
+## What was done, by task
+
+| Task | Module | What it does | Commit |
+|---|---|---|---|
+| 1 | `scheduling/deadman.py` + `tests/scheduling/test_deadman.py` | `check_in(url, *, post=_http_post)`: empty/None URL → no-op; else best-effort ping that swallows + loudly logs every error, never raising into the caller. `_http_post` = stdlib `urllib.request.urlopen` (`# pragma: no cover`); `post` injectable for offline tests. | `18bf8b1` |
+| 2 | `config.py` + `tests/scheduling/test_config_p2a.py` | `healthcheck_url_premarket` / `healthcheck_url_main`, default `""` (disabled). | `39356f7` |
+| 3 | `scheduling/dispatch.py` (`dispatch_job`) + tests | `if inserted: check_in(healthcheck_url)` placed immediately after the existing status-send. One line realizes the whole §2 contract. | `60ea3f9` |
+| 4 | `scheduling/dispatch.py` (`catch_up`) + tests | Routes the per-job URL into today's boot delegation; the past-date `missed` reconciliation never pings. | `c97e91e` |
+| 5 | `scheduling/__main__.py` (`run_scheduler`) | Builds the `{premarket, main}` URL dict from settings; threads it into `catch_up` + each cron `_dispatch`, mirroring `label_prefix`. `main()` leaves URLs unset. | `b7bc7ea` |
+| 6 | `docker-compose.yml`, `.env.example` | `HEALTHCHECK_URL_PREMARKET` / `HEALTHCHECK_URL_MAIN` env passthroughs (default empty). | `5de11b1` |
+| 7 | `docs/runbooks/deadman-switch.md` | Owner-run six-step provisioning runbook (independent host → Healthchecks → two checks → email/Bark → set URLs → verify both directions). | `cc4c49e` |
+
+## Key invariants proved here
+
+- **Ping iff a message reached the owner (the crux, §2).** The only two things that suppress a check-in are exactly W1 (nothing ran) and W2 (nothing delivered). A *delivered* `failed_infra`/status/skip still pings — it proves the node is alive and the channel works, and the owner already got the loud message the normal way, so the switch must not *also* fire.
+- **W2 needs no branch.** On total channel failure `send_with_fallback` **raises**; because the ping is placed strictly *after* the send, the raise propagates before `check_in` is reached → no ping → the watchdog pages. (`test_both_channels_down_does_not_ping` — the assertion that matters most.)
+- **Best-effort, biased to false-page over silent-miss.** `check_in` never raises into `dispatch_job`; a ping lost while delivery succeeded causes a Healthchecks false-page — the safe direction (loud, self-corrects next day). No retries/jitter/circuit-breaker (YAGNI).
+- **Disable gate.** Empty URL ⇒ no-op, so offline tests / `--dry-run` / local / the manual `main()` entrypoint never ping.
+- **Past-date reconciliation never pings.** `catch_up`'s direct `missed` writes are reconciliation records, not today's live delivery — a missed past day must not satisfy today's external deadline.
+
+## How to test
+
+```bash
+PYTHONPATH=. .venv/Scripts/python.exe -m pytest -p no:cacheprovider -q tests/scheduling
+```
+
+Offline, no live network: `check_in` takes an injectable `post`; the `dispatch_job`/`catch_up` send path is stub-driven. 73 scheduling tests green (incl. `test_deadman.py`, the four `dispatch_job` ping-contract tests, and the two `catch_up` routing/no-ping tests).
+
+## Out of scope / deferred
+
+- **Second-host provisioning + Healthchecks + email/Bark wiring** — owner-run ops, `docs/runbooks/deadman-switch.md`. The code ships and is testable without it.
+- **Accepted non-closure:** if the second host is also down at deadline, no page fires (bounded by choosing an independent, more-reliable host; a personal system does not chase infinite regress).
