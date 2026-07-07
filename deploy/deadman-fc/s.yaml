@@ -1,0 +1,65 @@
+# SCHEMA NOTE: written against fc3 component edition 3.0.0 (Serverless Devs).
+# Trigger config structure (config: authType/methods for http; config: cronExpression/enable
+# for timer) and props.role for the function execution RAM role have been confirmed against
+# Alibaba Cloud FC3 docs. Verify the installed `s` CLI version matches before first deploy:
+#   s --version && s cli fc3 --help
+edition: 3.0.0
+name: marketwind-deadman
+access: default
+
+vars:
+  region: cn-hangzhou
+
+resources:
+  ping:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: deadman-ping
+      description: "Dead-man ping endpoint — records job check-ins to OSS"
+      runtime: python3.10
+      handler: watcher.ping_handler.handler
+      code: ./
+      memorySize: 128
+      timeout: 10
+      role: ${env('FC_SERVICE_ROLE_ARN')}
+      environmentVariables:
+        OSS_BUCKET: ${env('OSS_BUCKET')}
+        OSS_ENDPOINT: ${env('OSS_ENDPOINT')}
+        JOBS: "premarket,main"
+        PERIOD_SECONDS: "86400"
+        GRACE_SECONDS: "10800"
+      triggers:
+        - name: httpTrigger
+          type: http
+          config:
+            authType: anonymous
+            methods:
+              - GET
+
+  check:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: deadman-check
+      description: "Dead-man check — fires Bark push when a job goes silent past period+grace"
+      runtime: python3.10
+      handler: watcher.check_handler.handler
+      code: ./
+      memorySize: 128
+      timeout: 30
+      role: ${env('FC_SERVICE_ROLE_ARN')}
+      environmentVariables:
+        OSS_BUCKET: ${env('OSS_BUCKET')}
+        OSS_ENDPOINT: ${env('OSS_ENDPOINT')}
+        JOBS: "premarket,main"
+        PERIOD_SECONDS: "86400"
+        GRACE_SECONDS: "10800"
+        BARK_BASE_URL: ${env('BARK_BASE_URL')}
+        BARK_KEY: ${env('BARK_KEY')}
+      triggers:
+        - name: timerTrigger
+          type: timer
+          config:
+            cronExpression: "0 0 * * * *"
+            enable: true
