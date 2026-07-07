@@ -55,6 +55,8 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       BOCHA_API_KEY: ${BOCHA_API_KEY:-}
       REPORT_DEV_LABEL: ${REPORT_DEV_LABEL:-true}
+      HEALTHCHECK_URL_PREMARKET: ${HEALTHCHECK_URL_PREMARKET:-}
+      HEALTHCHECK_URL_MAIN: ${HEALTHCHECK_URL_MAIN:-}
     volumes:
       - ${HERMES_HOST_DIR:-./hermes-creds}:/root/.hermes:ro
     depends_on:
