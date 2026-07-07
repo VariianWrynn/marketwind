@@ -42,7 +42,16 @@ Rules:
 - Structural sentence (section title / transition): sentence_type="structural",
   claim_ids=[], source_ids=[].
 - Every claim.quote_ids must be ids from the pool; every sentence.source_ids must
-  be source ids from the pool. The brief should be ~500 Chinese characters."""
+  be source ids from the pool. The brief should be ~500 Chinese characters.
+- Number fidelity: render every figure EXACTLY as its source quote states it —
+  same digits, same unit. Never unit-convert-and-round (e.g. a source's
+  17539.73万元 must stay 17539.73万元, never become 1.75亿元): rounding loses
+  precision and breaks the source's own arithmetic.
+- Self-contained claims (自包含主体): every claim.statement must name its own
+  subject — the specific 股票/公司/指数 it is about. Never use 该股/该公司/
+  该指数/它/其 as a stand-in for a subject named in another claim, because each
+  claim is verified in isolation. BAD: "该股当日收盘价涨幅达15%" (reader cannot
+  tell which stock). GOOD: "南芯科技(688484)当日收盘价涨幅达15%"."""
 
 
 def alias_pool(

@@ -39,6 +39,17 @@ def test_prompt_demands_json_no_freeform():
     assert "claims" in text and "sentences" in text
 
 
+def test_prompt_demands_number_fidelity():
+    # The Writer must render every figure exactly as its source quote states it
+    # and never unit-convert-and-round. Anchored on the real failure where a
+    # source's 17539.73万元 was rendered as 1.75亿元, breaking the arithmetic
+    # and tripping the I10 contradiction check.
+    msgs = build_writer_prompt(POOL)
+    text = " ".join(m["content"] for m in msgs)
+    assert "17539.73万元" in text
+    assert "1.75亿元" in text
+
+
 def test_alias_pool_returns_correct_maps_and_rows():
     rows, q_map, s_map = alias_pool(POOL)
     # alias maps
@@ -49,3 +60,13 @@ def test_alias_pool_returns_correct_maps_and_rows():
     assert rows[0]["source_id"] == "s1"
     assert rows[1]["quote_id"] == "q2"
     assert rows[1]["source_id"] == "s1"
+
+
+def test_prompt_demands_self_contained_claims():
+    msgs = build_writer_prompt(POOL)
+    text = " ".join(m["content"] for m in msgs)
+    # Each claim statement must name its own subject; no dangling 该股/该公司
+    # references, because claims are verified in isolation. Root cause of the
+    # 涨停-vs-15% I10 mis-binding (a subject-less "+15%" bound to 南芯科技).
+    assert "该股" in text
+    assert "自包含" in text or "主体" in text
