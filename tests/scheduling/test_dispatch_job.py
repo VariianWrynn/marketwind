@@ -285,3 +285,69 @@ async def test_send_suppressed_when_record_conflicts(monkeypatch):
     )
 
     assert sends == [], f"expected no page when record_run conflicted; got {sends!r}"
+
+
+async def test_published_pings_healthcheck(monkeypatch):
+    pings = []
+    async def stub_run_once(*a, **k):
+        return RunOutcome(PUBLISHED)
+    _, _, fake_get, fake_record = _make_ledger()
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.check_in", lambda url: pings.append(url))
+    await dispatch_job("main", **{**_COMMON_KWARGS, "primary": StubSink(),
+                                  "fallback": StubSink(), "healthcheck_url": "http://hc/main"})
+    assert pings == ["http://hc/main"]
+
+
+async def test_delivered_status_pings_healthcheck(monkeypatch):
+    pings = []
+    async def stub_run_once(*a, **k):
+        return RunOutcome(SUB_FLOOR, "g=0 p=0 o=0")
+    _, _, fake_get, fake_record = _make_ledger()
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.check_in", lambda url: pings.append(url))
+    await dispatch_job("main", **{**_COMMON_KWARGS, "primary": StubSink(),
+                                  "fallback": StubSink(), "healthcheck_url": "http://hc/main"})
+    assert pings == ["http://hc/main"]
+
+
+async def test_both_channels_down_does_not_ping(monkeypatch):
+    # W2: node alive, wrote failed_infra row, but the page could not escape
+    # (send_with_fallback raised). The dead-man's switch must NOT also ping —
+    # its silence is what pages the owner externally. THE assertion that matters most.
+    pings = []
+    async def stub_run_once(*a, **k):
+        return RunOutcome(FAILED_INFRA, "boom")
+    _, _, fake_get, fake_record = _make_ledger()
+    def raising_send(text, *, primary, fallback, trace_id):
+        raise RuntimeError("both IM channels failed")
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", fake_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.send_with_fallback", raising_send)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.check_in", lambda url: pings.append(url))
+    with pytest.raises(RuntimeError):
+        await dispatch_job("main", **{**_COMMON_KWARGS, "primary": StubSink(),
+                                      "fallback": StubSink(), "healthcheck_url": "http://hc/main"})
+    assert pings == [], f"W2 must not ping; got {pings!r}"
+
+
+async def test_record_conflict_does_not_ping(monkeypatch):
+    pings = []
+    async def stub_run_once(*a, **k):
+        return RunOutcome(SUB_FLOOR, "g=0 p=0 o=0")
+    async def fake_get(conn, *, job_id, trading_date):
+        return None
+    async def conflict_record(conn, *, job_id, trading_date, status, trace_id, detail=None):
+        return False
+    monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.record_run", conflict_record)
+    monkeypatch.setattr("marketwind.scheduling.dispatch.check_in", lambda url: pings.append(url))
+    await dispatch_job("main", **{**_COMMON_KWARGS, "primary": StubSink(),
+                                  "fallback": StubSink(), "healthcheck_url": "http://hc/main"})
+    assert pings == [], f"lost-race duplicate must not ping; got {pings!r}"

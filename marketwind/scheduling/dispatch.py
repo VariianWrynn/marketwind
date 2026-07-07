@@ -21,6 +21,7 @@ from marketwind.scheduling.outcome import (
     FAILED_INFRA,
 )
 from marketwind.gateway.im.label import DEV_PREFIX
+from marketwind.scheduling.deadman import check_in
 from marketwind.scheduling.run_once import run_once
 from marketwind.storage.repo import record_run, get_run_status
 from marketwind.orchestration.runner import send_with_fallback
@@ -123,6 +124,7 @@ async def dispatch_job(
     retries: int,
     backoff_s: float,
     label_prefix: str = DEV_PREFIX,
+    healthcheck_url: str = "",
 ) -> RunOutcome:
     """Single entry point for cron and boot dispatchers.
 
@@ -213,6 +215,9 @@ async def dispatch_job(
     text = _status_text(outcome, plan, trace_id)
     if inserted and text is not None:
         send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
+
+    if inserted:
+        check_in(healthcheck_url)
 
     return outcome
 
