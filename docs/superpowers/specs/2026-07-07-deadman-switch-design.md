@@ -1,5 +1,7 @@
 # Dead-man's switch — out-of-process liveness watchdog (P2b item E / G1.3)
 
+> **Superseded (watcher only, 2026-07-07):** the watcher-implementation decisions in this spec (self-hosted Healthchecks on a second host; email+Bark fan-out) are superseded by `2026-07-07-deadman-fc-watcher-design.md` (Aliyun FC serverless watcher, Bark-only). The §2 check-in contract and §3 daemon code in this spec remain in force and unchanged.
+
 > **Read when:** building or changing the check-in / dead-man's-switch path, or standing up the second-host Healthchecks watcher.
 
 **Status:** design approved (2026-07-07 brainstorm). Scope: **item E only** (the deferred P2b residual-closer). Cloud cutover (Track 1) is a separate owner-run ops track, out of scope here.

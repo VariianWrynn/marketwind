@@ -1,5 +1,7 @@
 # Dead-man's Switch Runbook — second-host liveness watchdog (G1.3)
 
+> **Superseded (2026-07-07):** the production watcher is now the Aliyun FC serverless watchdog — deploy via `deploy/deadman-fc/README.md`. This Healthchecks/second-host procedure is retained only as the historical rehearsal reference; the daemon-side check-in path it describes is unchanged.
+
 > **Read when:** provisioning or maintaining the out-of-process watcher that closes the two residual silent-miss windows (W1 "node down & staying down", W2 "push channel down"). This is **owner-run ops**, executed once the second host is available. It does **not** block the daemon-side code, which is already built and tested offline.
 
 **Spec:** `docs/superpowers/specs/2026-07-07-deadman-switch-design.md`.

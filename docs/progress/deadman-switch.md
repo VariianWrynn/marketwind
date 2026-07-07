@@ -2,7 +2,7 @@
 
 > **Read when:** working on the check-in path, the second-host Healthchecks watcher, or investigating why a missing morning report did (or did not) page the owner externally.
 
-**Status:** daemon-side code complete + tested offline, 2026-07-07. Second-host provisioning is owner-run ops (`docs/runbooks/deadman-switch.md`), deferred — the switch is disabled (empty URL ⇒ no-op) until the owner sets the URLs. Spec: `docs/superpowers/specs/2026-07-07-deadman-switch-design.md`. Plan: `docs/superpowers/plans/2026-07-07-deadman-switch.md`.
+**Status:** daemon-side code complete + tested offline, 2026-07-07. **Production watcher = the Aliyun FC serverless watchdog** (spec `docs/superpowers/specs/2026-07-07-deadman-fc-watcher-design.md`, code `deploy/deadman-fc/`, deploy `deploy/deadman-fc/README.md`) — built + tested offline (17 tests). The local Healthchecks run below was a **rehearsal**, not the deployed watcher; it superseded the original second-host Healthchecks plan. Owner-run deploy is deferred — the switch is disabled (empty URL ⇒ no-op) until the owner sets the `ping` URLs. Daemon spec: `docs/superpowers/specs/2026-07-07-deadman-switch-design.md`. Plan: `docs/superpowers/plans/2026-07-07-deadman-switch.md`.
 
 **What it delivers:** the daemon checks in to an external Healthchecks watchdog **iff it delivered a message to the owner**. The *absence* of a check-in past the deadline becomes a loud email + Bark page that originates **outside** the node — the only design that can report on a dead node (W1) or a dead push channel (W2).
 
@@ -49,5 +49,5 @@ Environment notes for anyone repeating this: Docker Hub is unreachable from here
 
 ## Out of scope / deferred
 
-- **Second-host provisioning + Healthchecks + email/Bark wiring** — owner-run ops, `docs/runbooks/deadman-switch.md`. The code ships and is testable without it.
-- **Accepted non-closure:** if the second host is also down at deadline, no page fires (bounded by choosing an independent, more-reliable host; a personal system does not chase infinite regress).
+- **Aliyun FC watcher deploy** — owner-run ops, `deploy/deadman-fc/README.md` (OSS bucket + RAM role + Bark key + `s deploy` + wire the two `ping` URLs). This is the production replacement for the second-host Healthchecks plan; the code ships and is testable without it.
+- **Accepted non-closure:** a provider-wide Aliyun outage taking down FC at deadline fires no page (bounded watch-the-watcher regress; FC's managed multi-AZ is an independent failure domain from the single node, which is what W1 requires — a personal system does not chase infinite regress).
