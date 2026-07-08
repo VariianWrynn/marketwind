@@ -1,0 +1,31 @@
+# Production overrides for the Aliyun report node. Apply on top of the base compose:
+#   docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml up -d --build
+# Base docker-compose.yml is unchanged (it serves local dev verbatim).
+services:
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  app:
+    restart: unless-stopped
+
+  scheduler:
+    # Cron is wall-clock; the cloud box must run Asia/Shanghai or reports fire 8h off.
+    environment:
+      TZ: Asia/Shanghai
+
+  backup:
+    build:
+      context: deploy/report-node
+    environment:
+      DATABASE_URL: postgresql://marketwind:marketwind@postgres:5432/marketwind
+      OSS_BUCKET: ${OSS_BUCKET:?set OSS_BUCKET in .env}
+      OSSUTIL_AUTH_ARGS: ${OSSUTIL_AUTH_ARGS:-}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
