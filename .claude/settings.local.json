@@ -16,7 +16,28 @@
       "Bash(mkdir -p citation docs .claude/skills/citation-builder)",
       "Bash(mv SKILL.md .claude/skills/citation-builder/)",
       "Bash(git init *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(.venv/Scripts/python.exe --version)",
+      "Bash(DATABASE_URL=postgresql://marketwind:marketwind@localhost:5432/marketwind REDIS_URL=redis://localhost:6379/0 .venv/Scripts/python.exe -m pytest tests/test_migrate.py -q)",
+      "Bash(.venv/Scripts/python.exe -m sqlfluff lint migrations/0002_p1_core.sql)",
+      "Bash(DATABASE_URL=postgresql://marketwind:marketwind@localhost:5432/marketwind REDIS_URL=redis://localhost:6379/0 .venv/Scripts/python.exe -m marketwind.storage.migrate)",
+      "Bash(DATABASE_URL=postgresql://marketwind:marketwind@localhost:5432/marketwind REDIS_URL=redis://localhost:6379/0 .venv/Scripts/python.exe -m pytest tests/scout/test_repo.py::test_p1_core_tables_exist -v)",
+      "Bash(git commit -m ' *)",
+      "Bash(.venv/Scripts/python.exe -c \"from marketwind.scout.domain import Source, Quote, FloorResult, ScoutResult; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_timeparse.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_timeparse.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_numbers.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_numbers.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_outlets.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_outlets.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pip install -e .)",
+      "Bash(.venv/Scripts/python.exe -c \"import trafilatura; print\\(trafilatura.__version__\\)\")",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(D:/AgentDaily/.venv/Scripts/python.exe -c \"import trafilatura; print\\(trafilatura.__version__\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_clean.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/ -v --ignore=tests/scout/test_repo.py)"
     ]
   }
 }
