@@ -1,0 +1,133 @@
+{
+  "claims": [
+    {
+      "id": "c1",
+      "statement": "6月3日，市场震荡拉升。",
+      "quote_ids": ["q6"]
+    },
+    {
+      "id": "c2",
+      "statement": "截至午间收盘，沪指报4097.94点，涨0.56%；深成指报15951.08点，涨2.31%；创业板指报4216.74点，涨3.97%。",
+      "quote_ids": ["q10"]
+    },
+    {
+      "id": "c3",
+      "statement": "科创50指数上涨2.11%，报收1726.18点。",
+      "quote_ids": ["q40"]
+    },
+    {
+      "id": "c4",
+      "statement": "科创板全日成交58.60亿股，成交额4538.25亿元。",
+      "quote_ids": ["q40"]
+    },
+    {
+      "id": "c5",
+      "statement": "盘面上，光纤概念、培育钻石、CPO板块涨幅居前，影视院线、教育、白酒板块跌幅居前。",
+      "quote_ids": ["q11"]
+    },
+    {
+      "id": "c6",
+      "statement": "PCB概念股走强，迅捷兴、一博科技、东材科技涨停。",
+      "quote_ids": ["q12"]
+    },
+    {
+      "id": "c7",
+      "statement": "据IDC披露，2026年全球AI服务器出货量预计突破200万台，直接拉动高端PCB需求增长超110%。",
+      "quote_ids": ["q13"]
+    },
+    {
+      "id": "c8",
+      "statement": "微信计划推出AI智能体，但腾讯人士表示上线时间取决于监管审批进度，目前无法确定。",
+      "quote_ids": ["q18", "q19"]
+    },
+    {
+      "id": "c9",
+      "statement": "高盛维持对中国A股“超配”评级，并指出人工智能芯片股回调风险正在上升。",
+      "quote_ids": ["q34", "q31"]
+    },
+    {
+      "id": "c10",
+      "statement": "申万宏源认为，AI产业化下算力芯片、PCB、液冷等产业链环节面临创新机遇。",
+      "quote_ids": ["q38"]
+    },
+    {
+      "id": "c11",
+      "statement": "科创板今日大宗交易合计成交3.23亿元，沪硅产业成交1.66亿元居首。",
+      "quote_ids": ["q51", "q53"]
+    }
+  ],
+  "sentences": [
+    {
+      "sentence": "## 昨日复盘",
+      "claim_ids": [],
+      "source_ids": [],
+      "sentence_type": "structural"
+    },
+    {
+      "sentence": "6月3日，市场震荡拉升。",
+      "claim_ids": ["c1"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "截至午间收盘，沪指报4097.94点，涨0.56%；深成指报15951.08点，涨2.31%；创业板指报4216.74点，涨3.97%。",
+      "claim_ids": ["c2"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "科创50指数上涨2.11%，报收1726.18点。",
+      "claim_ids": ["c3"],
+      "source_ids": ["s6"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "科创板全日成交58.60亿股，成交额4538.25亿元。",
+      "claim_ids": ["c4"],
+      "source_ids": ["s6"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "盘面上，光纤概念、培育钻石、CPO板块涨幅居前，影视院线、教育、白酒板块跌幅居前。",
+      "claim_ids": ["c5"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "PCB概念股走强，迅捷兴、一博科技、东材科技涨停。",
+      "claim_ids": ["c6"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "据IDC披露，2026年全球AI服务器出货量预计突破200万台，拉动高端PCB需求增长超110%。",
+      "claim_ids": ["c7"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "微信计划推出AI智能体，但腾讯人士表示上线时间取决于监管审批进度，目前无法确定。",
+      "claim_ids": ["c8"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "高盛维持对中国A股“超配”评级，并指出人工智能芯片股回调风险正在上升。",
+      "claim_ids": ["c9"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "申万宏源认为，AI产业化下算力芯片、PCB、液冷等产业链环节面临创新机遇。",
+      "claim_ids": ["c10"],
+      "source_ids": ["s5"],
+      "sentence_type": "factual"
+    },
+    {
+      "sentence": "科创板今日大宗交易合计成交3.23亿元，沪硅产业成交1.66亿元居首。",
+      "claim_ids": ["c11"],
+      "source_ids": ["s7"],
+      "sentence_type": "factual"
+    }
+  ]
+}
