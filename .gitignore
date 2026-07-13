@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Owner deployment parameter notes (may hold real endpoints/keys) — never commit
+*部署参数*.txt
+阿里云部署参数.txt
+
 # Python
 __pycache__/
 *.py[cod]
