@@ -13,6 +13,13 @@ from marketwind.verifier.verifier import verify
 from marketwind.writer.domain import DraftBundle, WriterOutput
 
 
+def _send_soft(text: str, *, primary: IMChannel, fallback: IMChannel) -> SendResult:
+    res = primary.send(text)
+    if res.ok:
+        return res
+    return fallback.send(text)
+
+
 def send_with_fallback(text: str, *, primary: IMChannel, fallback: IMChannel,
                        trace_id: str) -> None:
     """Try primary; on failure try fallback; if both fail raise with trace_id."""
@@ -74,4 +81,12 @@ async def run_pipeline(
     await bundle.commit()
     labeled = apply_label(bundle.body, prefix=label_prefix)
     send_with_fallback(labeled, primary=primary, fallback=fallback, trace_id=trace_id)
+    if bundle.reference:
+        ref = _send_soft(bundle.reference, primary=primary, fallback=fallback)
+        if not ref.ok:
+            return RunOutcome(
+                PUBLISHED,
+                detail=f"report published; source-reference message FAILED "
+                       f"on both channels: {ref.error} trace_id={trace_id}",
+            )
     return RunOutcome(PUBLISHED)
