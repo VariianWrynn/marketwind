@@ -44,6 +44,12 @@ Fill in: DeepSeek key (`OPENAI_API_KEY`/`OPENAI_BASE_URL`), `BOCHA_API_KEY`, `TZ
 and the FC ping URLs (`HEALTHCHECK_URL_PREMARKET`/`_MAIN`) once `s deploy` has run.
 > CONFIRM the exact ossutil 2.x RAM-role flags against current ossutil docs before first run.
 
+Then verify the external API keys authenticate before building anything (stdlib-only,
+no venv needed) — it exits non-zero and prints a FAIL row for any bad/expired key:
+```
+python3 deploy/report-node/check_keys.py   # checks DeepSeek + Bocha (+ Bark if set)
+```
+
 ## 7. Log in to WeChat (headless, one-time)
 ```
 hermes gateway setup   # renders a terminal QR over SSH -- scan with your phone
