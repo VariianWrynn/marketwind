@@ -108,6 +108,7 @@ def _make_clean_bundle() -> tuple[DraftBundle, dict]:
         output=_writer_output(),
         pool=_clean_pool(),
         body="科创50昨日收涨0.36%。[1]",
+        reference="",
         commit=_commit,
     )
     return bundle, spy
@@ -124,6 +125,7 @@ def _make_i3_bundle() -> tuple[DraftBundle, dict]:
         output=_writer_output(),
         pool=_i3_pool(),
         body="科创50昨日收涨0.36%。[1]",
+        reference="",
         commit=_commit,
     )
     return bundle, spy
