@@ -1,57 +1,50 @@
 #!/usr/bin/env python3
 """Preflight: verify the external API keys in .env actually authenticate.
 
-Run on the box AFTER populating .env and BEFORE `docker compose up` — it catches
-a bad/expired/misspelled key in seconds instead of after a full build + a silent
-failed report:
+Run on the box AFTER populating .env and BEFORE `docker compose up` -- it catches
+a bad/expired/misspelled key in seconds instead of after a full build and a
+silent failed report:
 
     python3 deploy/report-node/check_keys.py            # reads ./.env
     python3 deploy/report-node/check_keys.py /path/.env # explicit .env path
 
-Stdlib-only (urllib) so it runs on a bare host with just python3 — no venv, no
-container, no project deps. It hits the same endpoints and auth-header shape the
-app clients use (marketwind/writer/client.py, marketwind/scout/discover.py).
+Stdlib-only (urllib), no type hints, no __future__ -- runs on python3 >= 3.6 on
+a bare host (no venv, no deps). It hits the SAME endpoints and auth-header shape
+the app uses: DeepSeek POST {base}/chat/completions (marketwind/writer/client.py)
+and Bocha POST https://api.bochaai.com/v1/web-search (marketwind/scout/discover.py).
 
-Checks:
-  - DeepSeek  OPENAI_API_KEY + OPENAI_BASE_URL   -> minimal chat completion
-  - Bocha     BOCHA_API_KEY                      -> minimal web search
-  - Bark      BARK_BASE_URL + BARK_KEY           -> test push (SKIP if unset)
-
-Fails LOUD (project value: "silent fail strongly unwelcomed"): prints a PASS /
-FAIL / SKIP table and exits non-zero if ANY configured key fails. Bark is
-optional — unset = SKIP, never FAIL.
+Fails LOUD: prints a PASS / FAIL / SKIP table and exits non-zero if ANY
+configured key fails. Bark is optional -- unset = SKIP, never FAIL.
 """
-
-from __future__ import annotations
 
 import json
 import os
 import sys
-import urllib.error
-import urllib.request
-from pathlib import Path
+
+try:                                # py3
+    from urllib.request import Request, urlopen
+    from urllib.error import HTTPError, URLError
+except ImportError:                 # py2 fallback
+    from urllib2 import Request, urlopen, HTTPError, URLError
 
 PASS = "PASS"
 FAIL = "FAIL"
 SKIP = "SKIP"
 
-# (name, status, detail)
-Result = tuple[str, str, str]
 
+def parse_env_file(text):
+    """Parse KEY=VALUE lines from a .env body -> dict.
 
-def parse_env_file(text: str) -> dict[str, str]:
-    """Parse KEY=VALUE lines from a .env file body.
-
-    Skips blank lines and `#` comments; strips an optional `export ` prefix and
-    surrounding quotes. First `=` splits key from value (values may contain `=`).
+    Skips blanks and '#' comments; drops an optional 'export ' prefix and
+    surrounding quotes; first '=' splits key/value (values may contain '=').
     """
-    out: dict[str, str] = {}
+    out = {}
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         if line.startswith("export "):
-            line = line[len("export ") :]
+            line = line[len("export "):]
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip().strip('"').strip("'")
@@ -60,56 +53,51 @@ def parse_env_file(text: str) -> dict[str, str]:
     return out
 
 
-def load_env(env_path: Path) -> dict[str, str]:
+def load_env(path):
     """Merge .env file values over the process environment (file wins)."""
     merged = dict(os.environ)
-    if env_path.is_file():
-        merged.update(parse_env_file(env_path.read_text(encoding="utf-8")))
+    if os.path.isfile(path):
+        with open(path, "r") as fh:
+            merged.update(parse_env_file(fh.read()))
     return merged
 
 
-def summarize(results: list[Result]) -> tuple[str, int]:
-    """Render the PASS/FAIL/SKIP table and compute the exit code.
+def summarize(results):
+    """Render the PASS/FAIL/SKIP table; return (text, exit_code).
 
-    Exit code is 1 if ANY result is FAIL, else 0 (SKIP never fails the run).
+    exit_code is 1 if ANY result is FAIL, else 0 (SKIP never fails the run).
     """
-    width = max((len(name) for name, _, _ in results), default=0)
-    lines = [f"  {name.ljust(width)}  {status}  {detail}".rstrip()
-             for name, status, detail in results]
-    failed = sum(1 for _, status, _ in results if status == FAIL)
-    passed = sum(1 for _, status, _ in results if status == PASS)
-    skipped = sum(1 for _, status, _ in results if status == SKIP)
+    width = max([len(name) for name, _, _ in results] or [0])
+    lines = []
+    for name, status, detail in results:
+        lines.append(("  %s  %s  %s" % (name.ljust(width), status, detail)).rstrip())
+    failed = len([1 for _, s, _ in results if s == FAIL])
+    passed = len([1 for _, s, _ in results if s == PASS])
+    skipped = len([1 for _, s, _ in results if s == SKIP])
     lines.append("")
-    verdict = "ALL CHECKS PASSED" if failed == 0 else f"{failed} CHECK(S) FAILED"
-    lines.append(f"{verdict}  (pass={passed} fail={failed} skip={skipped})")
+    verdict = "ALL CHECKS PASSED" if failed == 0 else "%d CHECK(S) FAILED" % failed
+    lines.append("%s  (pass=%d fail=%d skip=%d)" % (verdict, passed, failed, skipped))
     return "\n".join(lines), (1 if failed else 0)
 
 
-def _classify_http(err: urllib.error.HTTPError) -> str:
-    if err.code in (401, 403):
-        return f"{FAIL}||auth rejected (HTTP {err.code}) — key wrong/expired"
-    return f"{FAIL}||HTTP {err.code}"
-
-
-def _probe(request: urllib.request.Request) -> str:  # pragma: no cover - live
-    """Return 'PASS||detail' or 'FAIL||detail' for a live request."""
+def _probe(request):
+    """Fire a live request -> (status, detail). 200 = PASS; 401/403 = bad key."""
     try:
-        with urllib.request.urlopen(request, timeout=20) as resp:
-            return f"{PASS}||HTTP {resp.status}"
-    except urllib.error.HTTPError as err:
-        return _classify_http(err)
-    except urllib.error.URLError as err:
-        return f"{FAIL}||connection error: {err.reason}"
-    except Exception as err:  # noqa: BLE001 - preflight must never crash mid-table
-        return f"{FAIL}||{type(err).__name__}: {err}"
+        resp = urlopen(request, timeout=20)
+        code = getattr(resp, "status", None) or resp.getcode()
+        resp.close()
+        return (PASS, "HTTP %s" % code)
+    except HTTPError as err:
+        if err.code in (401, 403):
+            return (FAIL, "auth rejected (HTTP %d) -- key wrong/expired" % err.code)
+        return (FAIL, "HTTP %d" % err.code)
+    except URLError as err:
+        return (FAIL, "connection error: %s" % err.reason)
+    except Exception as err:  # preflight must never crash mid-table
+        return (FAIL, "%s: %s" % (type(err).__name__, err))
 
 
-def _result(name: str, probe_out: str) -> Result:
-    status, _, detail = probe_out.partition("||")
-    return (name, status, detail)
-
-
-def check_deepseek(env: dict[str, str]) -> Result:  # pragma: no cover - live
+def check_deepseek(env):
     key = env.get("OPENAI_API_KEY", "")
     base = env.get("OPENAI_BASE_URL", "").rstrip("/")
     if not key:
@@ -120,50 +108,48 @@ def check_deepseek(env: dict[str, str]) -> Result:  # pragma: no cover - live
         "model": env.get("LLM_MODEL", "deepseek-v4-pro"),
         "messages": [{"role": "user", "content": "ping"}],
         "max_tokens": 1,
-    }).encode()
-    req = urllib.request.Request(
-        f"{base}/chat/completions",
-        data=body,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    return _result("DeepSeek", _probe(req))
+    }).encode("utf-8")
+    req = Request(base + "/chat/completions", data=body, headers={
+        "Authorization": "Bearer " + key,
+        "Content-Type": "application/json",
+    })
+    status, detail = _probe(req)
+    return ("DeepSeek", status, detail)
 
 
-def check_bocha(env: dict[str, str]) -> Result:  # pragma: no cover - live
+def check_bocha(env):
     key = env.get("BOCHA_API_KEY", "")
     if not key:
         return ("Bocha", FAIL, "BOCHA_API_KEY unset")
-    body = json.dumps({"query": "测试", "count": 1}).encode()
-    req = urllib.request.Request(
-        "https://api.bochaai.com/v1/web-search",
-        data=body,
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    return _result("Bocha", _probe(req))
+    body = json.dumps({"query": "test", "count": 1}).encode("utf-8")
+    req = Request("https://api.bochaai.com/v1/web-search", data=body, headers={
+        "Authorization": "Bearer " + key,
+        "Content-Type": "application/json",
+    })
+    status, detail = _probe(req)
+    return ("Bocha", status, detail)
 
 
-def check_bark(env: dict[str, str]) -> Result:  # pragma: no cover - live
+def check_bark(env):
     base = env.get("BARK_BASE_URL", "").rstrip("/")
     key = env.get("BARK_KEY", "")
     if not base or not key:
-        return ("Bark", SKIP, "unset (optional — backup/watcher alerts disabled)")
-    req = urllib.request.Request(
-        f"{base}/{key}/MarketWind%20key%20check", method="GET"
-    )
-    return _result("Bark", _probe(req))
+        return ("Bark", SKIP, "unset (optional -- backup/watcher alerts disabled)")
+    req = Request(base + "/" + key + "/MarketWind%20key%20check")  # GET
+    status, detail = _probe(req)
+    return ("Bark", status, detail)
 
 
-def main(argv: list[str]) -> int:  # pragma: no cover - live
-    env_path = Path(argv[1]) if len(argv) > 1 else Path.cwd() / ".env"
-    env = load_env(env_path)
-    print(f"Checking API keys (source: {env_path if env_path.is_file() else 'process env only'})\n")
+def main(argv):
+    path = argv[1] if len(argv) > 1 else os.path.join(os.getcwd(), ".env")
+    env = load_env(path)
+    src = path if os.path.isfile(path) else "process env only"
+    sys.stdout.write("Checking API keys (source: %s)\n\n" % src)
     results = [check_deepseek(env), check_bocha(env), check_bark(env)]
     report, code = summarize(results)
-    print(report)
+    sys.stdout.write(report + "\n")
     return code
 
 
-if __name__ == "__main__":  # pragma: no cover - live
+if __name__ == "__main__":
     sys.exit(main(sys.argv))
