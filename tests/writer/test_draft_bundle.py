@@ -139,3 +139,14 @@ async def test_bundle_carries_output_and_pool(monkeypatch):
     # output is a WriterOutput with our claim
     assert bundle.output.claims[0].local_id == "c-001"
     assert bundle.output.claims[0].quote_ids == ["QUO-1"]  # alias resolved
+
+
+async def test_bundle_reference_is_source_tail(monkeypatch):
+    async def fake_load_pool(conn):
+        return _CANNED_POOL
+
+    monkeypatch.setattr("marketwind.writer.runner.load_pool", fake_load_pool)
+    monkeypatch.setattr("marketwind.writer.runner.persist_report", _PersistSpy())
+
+    bundle = await draft_report(object(), call=_stub_call)
+    assert bundle.reference == "—— 来源 ——\n[1] m.cls.cn — https://m.cls.cn/a/1"

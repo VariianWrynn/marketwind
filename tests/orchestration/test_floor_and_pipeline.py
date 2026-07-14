@@ -93,7 +93,7 @@ def _writer_output() -> WriterOutput:
     )
 
 
-def _make_bundle(pool: list[PooledSource]) -> tuple[DraftBundle, dict]:
+def _make_bundle(pool: list[PooledSource], reference: str = "") -> tuple[DraftBundle, dict]:
     """Return (bundle, spy) where spy["commit_calls"] increments on each commit()."""
     spy = {"commit_calls": 0}
 
@@ -105,6 +105,7 @@ def _make_bundle(pool: list[PooledSource]) -> tuple[DraftBundle, dict]:
         output=_writer_output(),
         pool=pool,
         body="科创50昨日收涨0.36%。[1]",
+        reference=reference,
         commit=_commit,
     )
     return bundle, spy
