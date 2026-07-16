@@ -36,7 +36,7 @@ class DraftClaim:
     local_id: str          # Writer-invented, e.g. "c-001"; mapped to a uuid on persist
     statement: str
     quote_ids: list[str]   # references PooledQuote.quote_id (real uuids); >= 1
-    category: str = "quantitative"   # quantitative | derived_metric | qualitative
+    category: str = "quantitative"   # one of schema._VALID_CATEGORIES (e.g. derived_metric)
     methodology: str | None = None   # required when category == "derived_metric" (I12)
 
 
