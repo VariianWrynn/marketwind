@@ -33,3 +33,23 @@ def test_pooled_quote_carries_span_and_source_carries_raw_content():
     assert s.raw_content == raw
     # Re-resolution invariant: the slice of raw matches the quote text
     assert s.raw_content[q.span_start:q.span_end] == q.text
+
+
+def test_draftclaim_carries_category_and_methodology():
+    from marketwind.writer.domain import DraftClaim
+    c = DraftClaim(
+        local_id="c-001",
+        statement="长鑫存储去年日赚3.6亿元。",
+        quote_ids=["q-1"],
+        category="derived_metric",
+        methodology="按净利润计",
+    )
+    assert c.category == "derived_metric"
+    assert c.methodology == "按净利润计"
+
+
+def test_draftclaim_defaults_are_non_derived():
+    from marketwind.writer.domain import DraftClaim
+    c = DraftClaim(local_id="c-002", statement="营收508亿元。", quote_ids=["q-2"])
+    assert c.category == "quantitative"
+    assert c.methodology is None
