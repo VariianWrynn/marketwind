@@ -125,3 +125,24 @@ async def test_verify_cross_tier_aggregation():
     check_codes = {v.check for v in result.violations}
     assert "I3" in check_codes, f"Expected I3 in {check_codes}"
     assert "I1" in check_codes, f"Expected I1 in {check_codes}"
+
+
+# ---------------------------------------------------------------------------
+# Test: I12 — derived_metric claim without methodology fails the gate
+# ---------------------------------------------------------------------------
+
+async def test_verify_flags_i12_derived_without_methodology():
+    text = "长鑫日赚3.6亿元"
+    quote = PooledQuote(quote_id="q-001", text=text, is_quantitative=True,
+                        quote_type="data", attached_primary_url="https://cninfo.com.cn/x",
+                        span_start=0, span_end=len(text))
+    source = PooledSource(source_id="s-001", url="https://cninfo.com.cn/x",
+                          domain="cninfo.com.cn", is_primary=True, quotes=[quote],
+                          raw_content=text)
+    claim = DraftClaim("c-001", "长鑫存储去年日赚3.6亿元。", ["q-001"],
+                       category="derived_metric")  # methodology missing
+    sentence = DraftSentence("长鑫存储去年日赚3.6亿元。", ["c-001"], ["s-001"], "factual")
+    out = WriterOutput(claims=[claim], sentences=[sentence])
+    result = await verify(out, [source], judge=_judge_clean)
+    assert result.passed is False
+    assert "I12" in {v.check for v in result.violations}
