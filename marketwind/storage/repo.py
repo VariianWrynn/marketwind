@@ -108,10 +108,10 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 continue  # drop claims whose sentence was tail-dropped (no orphans)
             cid = await conn.fetchval(
                 """
-                insert into claims (statement, quote_ids)
-                values ($1, $2::uuid[]) returning claim_id;
+                insert into claims (statement, quote_ids, category, methodology)
+                values ($1, $2::uuid[], $3, $4) returning claim_id;
                 """,
-                c.statement, c.quote_ids,
+                c.statement, c.quote_ids, c.category, c.methodology,
             )
             local_to_uuid[c.local_id] = cid
         for s in rendered_sentences:
