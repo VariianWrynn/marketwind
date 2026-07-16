@@ -70,3 +70,10 @@ def test_prompt_demands_self_contained_claims():
     # 涨停-vs-15% I10 mis-binding (a subject-less "+15%" bound to 南芯科技).
     assert "该股" in text
     assert "自包含" in text or "主体" in text
+
+
+def test_prompt_teaches_derived_metric_methodology():
+    msgs = build_writer_prompt([])
+    system = msgs[0]["content"]
+    assert "derived_metric" in system
+    assert "methodology" in system

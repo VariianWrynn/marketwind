@@ -30,7 +30,7 @@ inference and you preserve its attribution (e.g. 据XX证券研报观点)."""
 _OUTPUT_SPEC = """\
 OUTPUT: a single JSON object, no prose, no markdown fences:
 {
-  "claims":    [{"id": "c-001", "statement": "...", "quote_ids": ["<quote_id>", ...]}],
+  "claims":    [{"id": "c-001", "statement": "...", "quote_ids": ["<quote_id>", ...], "category": "quantitative", "methodology": ""}],
   "sentences": [{"sentence": "...", "claim_ids": ["c-001"], "source_ids": ["<source_id>"],
                  "sentence_type": "factual"}]
 }
@@ -51,7 +51,8 @@ Rules:
   subject — the specific 股票/公司/指数 it is about. Never use 该股/该公司/
   该指数/它/其 as a stand-in for a subject named in another claim, because each
   claim is verified in isolation. BAD: "该股当日收盘价涨幅达15%" (reader cannot
-  tell which stock). GOOD: "南芯科技(688484)当日收盘价涨幅达15%"."""
+  tell which stock). GOOD: "南芯科技(688484)当日收盘价涨幅达15%".
+- 数据类型标注（I12）：每条claim的category默认为"quantitative"；若该数字是来源方对基础数据的二次计算结果（举例：日赚、合计减持额、净利润增速等），则标记为"derived_metric"，同时必须在methodology字段中注明计算依据（如 按净利润计、按区间累计减持股数×均价计），不得省略；若无法确定计算方式，则直接引用基础数据原值，不得推断合计或换算。"""
 
 
 def alias_pool(
