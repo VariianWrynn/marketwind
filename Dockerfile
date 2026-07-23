@@ -15,9 +15,13 @@ RUN pip install --no-cache-dir .
 
 # Scout's crawler (gather_live) launches headless Chromium via Playwright. The pip
 # package ships no browser binary, so fetch it + its OS libs at build time, or every
-# report run dies with "Executable doesn't exist". China network: the default
-# Playwright CDN is slow/blocked, so pull the browser from the npmmirror mirror.
+# report run dies with "Executable doesn't exist". China network: both downloads
+# crawl on the default hosts, so use domestic mirrors — npmmirror for the browser
+# binary, Aliyun for the Debian apt packages that `--with-deps` installs.
 ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
+      [ -f "$f" ] && sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' "$f"; \
+    done; true
 RUN playwright install --with-deps chromium
 
 EXPOSE 8000
