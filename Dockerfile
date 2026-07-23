@@ -10,6 +10,9 @@ ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 COPY pyproject.toml ./
 COPY marketwind ./marketwind
 COPY migrations ./migrations
+# The Writer reads citation/rationalization-table.md at runtime (writer/prompt.py);
+# other citation/ companions are loaded by the Verifier. Ship the whole small dir.
+COPY citation ./citation
 
 RUN pip install --no-cache-dir .
 
