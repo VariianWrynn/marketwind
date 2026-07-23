@@ -10,7 +10,7 @@
 
 **Each stage's pass gates the next. Each fail has an explicit STOP/diagnose action. Never loosen a gate silently** — re-tuning the floor `8/1/2` or flipping the DEV label are explicit owner decisions, recorded. Accepted costs of this runbook: it burns **real DeepSeek tokens** (Stage 2/3) and does a **real WeChat push** to the owner.
 
-**Pre-req:** the dockerized Postgres is up (`docker compose up -d postgres`) and migrations applied; `.env` carries the DeepSeek key, Bocha key, `DATABASE_URL`, and the host hermes is logged in (WeChat QR done, kept warm by the daily clawbot keepalive). Run python as `.venv/Scripts/python.exe` with `PYTHONPATH=.`.
+**Pre-req:** the dockerized Postgres is up (`docker compose up -d postgres`) and migrations applied (`python -m marketwind.storage.migrate`, idempotent; cf. `deploy/report-node/README.md` step 9); `.env` carries the DeepSeek key, Bocha key, `DATABASE_URL`, and the host hermes is logged in (WeChat QR done, kept warm by the daily clawbot keepalive). Run python as `.venv/Scripts/python.exe` with `PYTHONPATH=.`.
 
 ---
 
