@@ -54,9 +54,15 @@ python3 deploy/report-node/check_keys.py   # checks DeepSeek + Bocha (+ Bark if 
 ```
 hermes gateway setup   # renders a terminal QR over SSH -- scan with your phone
 ```
-Creds persist under the mounted `~/.hermes` and survive restarts. Keep the session warm
-with the daily clawbot keepalive (ADR-0002); hard expiry (`errcode=-14`) needs a re-scan --
-the FC watcher pages you if a report silently fails to deliver.
+Creds persist under the mounted `~/.hermes` and survive restarts.
+
+> **Owner responsibility — daily keepalive (ADR-0002).** The WeChat iLink session goes
+> cold after ~24h with no inbound message and a proactive push then fails (`ret=-2`,
+> mislabeled stale-session; see `CLAUDE.md` §8). Keeping it warm is a **manual owner task**:
+> send a message back to the claw/bot each day so the session stays alive. There is no
+> automated warmer (P2b §8.2 is deliberately unbuilt). Hard expiry (`errcode=-14`) needs a
+> full re-scan via `hermes gateway setup`. The FC dead-man watcher pages you (Bark) if a
+> report silently fails to deliver — but the daily keepalive is what prevents that.
 
 ## 8. Bring up the stack
 ```
