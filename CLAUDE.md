@@ -151,6 +151,7 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 - Market data: akshare. Crawling: Bocha + Playwright fallback. **Domestic sources only — no crawling of overseas sites** (domestic media coverage of overseas markets is retained; see `ARCHITECTURE.md` Gap 2)
 - IM: primary WeChat, backup Feishu (see `DECISIONS.md` D-16)
 - Deploy: Docker Compose, single domestic cloud node
+- **Git over SSH, not HTTPS.** The China network resets `git`-over-HTTPS to `github.com:443` (`Recv failure: Connection was reset` / connect timeouts); SSH on port 22 is open and reliable. Push/pull over SSH — one-off without touching config: `git push git@github.com:VariianWrynn/marketwind.git master`. (`gh`'s API host `api.github.com` stays reachable even when git-HTTPS is blocked, so `gh issue`/`gh pr` work regardless.)
 
 Build/test commands (fill in after P0):
 
