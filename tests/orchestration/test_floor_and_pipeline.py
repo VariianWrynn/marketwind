@@ -321,6 +321,28 @@ async def test_reference_send_failure_is_published_with_detail():
 
 
 @pytest.mark.asyncio
+async def test_reference_failover_to_fallback_is_clean_publish():
+    """message 2 fails on primary but succeeds on fallback: Option A does NOT
+    trigger — the run is a clean PUBLISHED with no failure detail."""
+    primary = _RefFailSink(error="wechat down")   # ok on body, fails on 来源
+    fallback = StubSink()                          # succeeds on everything
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-failover",
+    )
+    assert out.status == PUBLISHED
+    assert out.detail is None
+    assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)   # body via primary
+    assert fallback.sent == ["—— 来源 ——\n[1] x.com — http://x/a"]     # reference via fallback
+
+
+@pytest.mark.asyncio
 async def test_reference_failure_detail_names_both_channel_errors():
     """On a both-channel failure, the ledger detail must preserve BOTH channel
     errors — losing the primary's cause makes the failure untraceable."""
