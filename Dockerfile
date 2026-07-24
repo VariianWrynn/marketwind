@@ -14,7 +14,7 @@ COPY migrations ./migrations
 # other citation/ companions are loaded by the Verifier. Ship the whole small dir.
 COPY citation ./citation
 
-RUN pip install --no-cache-dir .
+RUN pip install .
 
 # Scout's crawler (gather_live) launches headless Chromium via Playwright. The pip
 # package ships no browser binary, so fetch it + its OS libs at build time, or every
