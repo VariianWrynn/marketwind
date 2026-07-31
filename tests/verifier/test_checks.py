@@ -350,3 +350,39 @@ class TestCheckNoFirstPersonInference:
         violations = check_no_first_person_inference(output, {})
         assert len(violations) == 1
         assert violations[0].check == "RF-10"
+
+
+# ---------------------------------------------------------------------------
+# check_derived_methodology — I12
+# ---------------------------------------------------------------------------
+
+from marketwind.verifier.checks import check_derived_methodology
+
+
+def _out(*claims):
+    return WriterOutput(claims=list(claims), sentences=[])
+
+
+def test_i12_flags_derived_metric_without_methodology():
+    out = _out(DraftClaim("c-001", "长鑫日赚3.6亿元。", ["q1"], category="derived_metric"))
+    vs = check_derived_methodology(out, {})
+    assert len(vs) == 1
+    assert vs[0].check == "I12"
+    assert vs[0].locus == "c-001"
+
+
+def test_i12_passes_derived_metric_with_methodology():
+    out = _out(DraftClaim("c-001", "长鑫日赚3.6亿元。", ["q1"],
+                          category="derived_metric", methodology="按净利润计"))
+    assert check_derived_methodology(out, {}) == []
+
+
+def test_i12_ignores_non_derived_claims():
+    out = _out(DraftClaim("c-001", "营收508亿元。", ["q1"], category="quantitative"))
+    assert check_derived_methodology(out, {}) == []
+
+
+def test_i12_flags_blank_methodology():
+    out = _out(DraftClaim("c-001", "长鑫日赚3.6亿元。", ["q1"],
+                          category="derived_metric", methodology="   "))
+    assert len(check_derived_methodology(out, {})) == 1

@@ -106,3 +106,45 @@ def test_non_list_sentences_rejected():
     bad = json.dumps({"claims": [], "sentences": "not a list"})
     with pytest.raises(SchemaViolation):
         parse_and_validate(bad, VALID_QIDS, VALID_SIDS)
+
+
+# ---- I12 category / methodology tests ----
+
+_QIDS = {"q1"}
+_SIDS = {"s1"}
+
+
+def _raw(category=None, methodology=None):
+    claim = {"id": "c-001", "statement": "陈述", "quote_ids": ["q1"]}
+    if category is not None:
+        claim["category"] = category
+    if methodology is not None:
+        claim["methodology"] = methodology
+    return json.dumps({
+        "claims": [claim],
+        "sentences": [{"sentence": "陈述。", "claim_ids": ["c-001"],
+                       "source_ids": ["s1"], "sentence_type": "factual"}],
+    })
+
+
+def test_schema_parses_category_and_methodology():
+    out = parse_and_validate(_raw("derived_metric", "按净利润计"), _QIDS, _SIDS)
+    assert out.claims[0].category == "derived_metric"
+    assert out.claims[0].methodology == "按净利润计"
+
+
+def test_schema_defaults_category_when_absent():
+    out = parse_and_validate(_raw(), _QIDS, _SIDS)
+    assert out.claims[0].category == "quantitative"
+    assert out.claims[0].methodology is None
+
+
+def test_schema_rejects_unknown_category():
+    with pytest.raises(SchemaViolation):
+        parse_and_validate(_raw("bogus_category"), _QIDS, _SIDS)
+
+
+def test_schema_does_not_reject_derived_without_methodology():
+    out = parse_and_validate(_raw("derived_metric"), _QIDS, _SIDS)
+    assert out.claims[0].category == "derived_metric"
+    assert out.claims[0].methodology is None

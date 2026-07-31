@@ -119,3 +119,35 @@ async def test_run_writer_end_to_end_with_stub(conn, fixtures_dir_writer):
         "select source_ids from sentences where report_id=$1;", report_id
     )
     assert str(row["source_ids"][0]) == sid
+
+
+async def test_persist_report_writes_category_and_methodology(conn):
+    from marketwind.writer.domain import DraftClaim, DraftSentence, WriterOutput
+    from marketwind.writer.render import render_brief
+    await conn.execute("delete from sources;")
+    await conn.execute("delete from claims;")
+    await conn.execute("delete from sentences;")
+    sid = await upsert_source(conn, _sample_source())
+    pool = await load_pool(conn)
+    qid = pool[0].quotes[0].quote_id
+    out = WriterOutput(
+        claims=[DraftClaim("c-001", "长鑫日赚3.6亿元。", [qid],
+                           category="derived_metric", methodology="按净利润计")],
+        sentences=[DraftSentence("长鑫日赚3.6亿元。", ["c-001"], [sid], "factual")],
+    )
+    brief = render_brief(out)
+    await persist_report(conn, out.claims, brief.sentences)
+    row = await conn.fetchrow("select category, methodology from claims;")
+    assert row["category"] == "derived_metric"
+    assert row["methodology"] == "按净利润计"
+
+
+async def test_db_check_rejects_derived_without_methodology(conn):
+    import asyncpg
+    import pytest
+    await conn.execute("delete from claims;")
+    with pytest.raises(asyncpg.IntegrityConstraintViolationError):
+        await conn.execute(
+            "insert into claims (statement, quote_ids, category, methodology)"
+            " values ('x', '{}'::uuid[], 'derived_metric', null);"
+        )
