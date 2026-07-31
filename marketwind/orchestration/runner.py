@@ -1,6 +1,7 @@
 """P2b orchestrator: floor/verify gates -> check-before-send -> publish; returns RunOutcome."""
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 
 from marketwind.gateway.im.base import IMChannel, SendResult
@@ -12,12 +13,18 @@ from marketwind.verifier.domain import Violation
 from marketwind.verifier.verifier import verify
 from marketwind.writer.domain import DraftBundle, WriterOutput
 
+logger = logging.getLogger(__name__)
+
 
 def _send_soft(text: str, *, primary: IMChannel, fallback: IMChannel) -> SendResult:
-    res = primary.send(text)
-    if res.ok:
-        return res
-    return fallback.send(text)
+    p = primary.send(text)
+    if p.ok:
+        return p
+    f = fallback.send(text)
+    if f.ok:
+        return f
+    # Both failed — preserve each channel's cause so the ledger detail is traceable.
+    return SendResult(ok=False, error=f"primary={p.error}; fallback={f.error}")
 
 
 def send_with_fallback(text: str, *, primary: IMChannel, fallback: IMChannel,
@@ -84,9 +91,10 @@ async def run_pipeline(
     if bundle.reference:
         ref = _send_soft(bundle.reference, primary=primary, fallback=fallback)
         if not ref.ok:
-            return RunOutcome(
-                PUBLISHED,
-                detail=f"report published; source-reference message FAILED "
-                       f"on both channels: {ref.error} trace_id={trace_id}",
+            detail = (
+                f"report published; source-reference message FAILED "
+                f"on both channels: {ref.error} trace_id={trace_id}"
             )
+            logger.warning("source-reference (message 2) send failed: %s", detail)
+            return RunOutcome(PUBLISHED, detail=detail)
     return RunOutcome(PUBLISHED)

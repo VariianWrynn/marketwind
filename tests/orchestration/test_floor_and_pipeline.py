@@ -254,11 +254,12 @@ async def test_already_published_skips_send():
 
 class _RefFailSink:
     """Succeeds on the report body, fails on the reference (header contains 来源)."""
-    def __init__(self):
+    def __init__(self, error="ref boom"):
+        self.error = error
         self.sent = []
     def send(self, text):
         if "来源" in text:
-            return SendResult(ok=False, error="ref boom")
+            return SendResult(ok=False, error=self.error)
         self.sent.append(text)
         return SendResult(ok=True)
 
@@ -317,3 +318,46 @@ async def test_reference_send_failure_is_published_with_detail():
     assert "source-reference message FAILED" in out.detail
     assert "t-reffail" in out.detail
     assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)
+
+
+@pytest.mark.asyncio
+async def test_reference_failover_to_fallback_is_clean_publish():
+    """message 2 fails on primary but succeeds on fallback: Option A does NOT
+    trigger — the run is a clean PUBLISHED with no failure detail."""
+    primary = _RefFailSink(error="wechat down")   # ok on body, fails on 来源
+    fallback = StubSink()                          # succeeds on everything
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-failover",
+    )
+    assert out.status == PUBLISHED
+    assert out.detail is None
+    assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)   # body via primary
+    assert fallback.sent == ["—— 来源 ——\n[1] x.com — http://x/a"]     # reference via fallback
+
+
+@pytest.mark.asyncio
+async def test_reference_failure_detail_names_both_channel_errors():
+    """On a both-channel failure, the ledger detail must preserve BOTH channel
+    errors — losing the primary's cause makes the failure untraceable."""
+    primary = _RefFailSink(error="wechat rate-limited")
+    fallback = _RefFailSink(error="feishu auth-expired")
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-bothch",
+    )
+    assert out.status == PUBLISHED
+    assert "wechat rate-limited" in out.detail
+    assert "feishu auth-expired" in out.detail
