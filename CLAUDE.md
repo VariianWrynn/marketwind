@@ -121,7 +121,14 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 3. **Prompt changes**: run `tests/prompt_regression/` on every Writer-prompt edit; a score below the previous version is not accepted.
 4. **Verify before completion (Law 5 spirit)**: before claiming "done/passing", run the actual command, read the full output, confirm, then claim. No command run = cannot claim it passes.
 5. **Failure cases**: everything the Verifier rejects goes into `claim_failures`; review weekly and feed it back into the rules.
-6. **Document after each sub-phase**: when a dev sub-phase completes, write a short progress note in `docs/progress/<phase>.md` — what each module does, its commit, and the invariants it proves. Keep it lightweight (a table + a few bullets), not a full design doc. See `docs/progress/P1a-scout.md` for the template.
+6. **Document in the same PR — a phase is done when the docs land, not when the tests pass.** Every PR carries its own paper trail; none of it is a follow-up chore. The set:
+   - **Spec** — `docs/superpowers/specs/<date>-<name>-design.md`, the brainstorm output (what shape, and why that one). Skip it *only* when the design was already locked upstream (a `CITATION_CONTRACT.md` invariant, an existing ADR), and then **say so in the progress note**, naming where the design actually lives. Silence reads as an omission.
+   - **Plan** — `docs/superpowers/plans/<date>-<name>.md`.
+   - **Progress note** — `docs/progress/<phase>.md`: what each module does, its commit, the invariants it proves, how to test, out of scope. Lightweight — a table plus a few bullets, not a second design doc. Template: `docs/progress/P1a-scout.md`.
+   - **Close what it closes.** If the work resolves a `docs/GAPS.md` entry, or part of one, move it to *Recently closed* **in the same PR** and say what of it stays open. If it changes an approach, add the `DECISIONS.md` ADR. A shipped fix whose gap is still listed open is how the same work gets planned twice.
+   - **A stacked or follow-up PR updates the note it invalidates** rather than leaving the phase note describing behavior it just replaced.
+
+   Self-check before opening the PR: from the repo alone, could someone who wasn't here reconstruct *what changed, why that shape, and what it closed*? If not, it isn't done.
 7. **Web-search unknown external errors before guessing**: when an opaque error from a third-party tool/API/SDK shows up — a vendor error code, a cryptic message, surprising library behavior — **search the web before theorizing or coding a fix**. Don't burn cycles guessing or retrying blindly. Worked example (2026-06-07): the WeChat iLink send kept failing with `ret=-2 errmsg=rate limited`; naive reading said "wait out a rate limit" and time-based backoff did nothing. A web search of the `hermes-agent` issue tracker revealed `ret=-2` is a **mislabeled stale-session** signal — the fix is to refresh the session (or retry tokenless), not to wait. The search converted a dead-end into the correct fix and a P2 design item. Treat the wider community's hard-won knowledge as a first-class debugging tool, especially for external/vendor-side failures we can't see the source of.
 
 ---
@@ -141,6 +148,8 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 | `DECISIONS.md` | locked decisions + ADR process | before changing any approach |
 | `tests/citation_ground_truth/samples.md` | 12 labeled samples (RED baseline) | when writing Verifier tests |
 | `docs/progress/<phase>.md` | per-sub-phase "what was done" notes | picking up / resuming a built layer |
+| `docs/GAPS.md` | open gaps by tier + *Recently closed* | choosing what to build next; **closing a gap you just shipped** |
+| `docs/superpowers/specs/`, `docs/superpowers/plans/` | per-phase design + implementation plan | starting a phase, or reconstructing why a shape was chosen |
 
 ---
 
