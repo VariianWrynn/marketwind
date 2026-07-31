@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 
 from marketwind.storage.repo import load_pool, persist_report
 from marketwind.writer.domain import DraftBundle
-from marketwind.writer.render import render_brief
+from marketwind.writer.render import render_brief, render_source_tail
 from marketwind.writer.select import eligible_pool, officially_verified_claims
 from marketwind.writer.writer import assemble
 
@@ -36,7 +36,10 @@ async def draft_report(conn, *, call: CallFn, max_chars: int = 500) -> DraftBund
     async def _commit() -> str:
         return await persist_report(conn, output.claims, brief.sentences)
 
-    return DraftBundle(output=output, pool=pool, body=brief.body, commit=_commit)
+    url_by_id = {s.source_id: s.url for s in pool}
+    reference = render_source_tail(brief.footnotes, url_by_id)
+
+    return DraftBundle(output=output, pool=pool, body=brief.body, reference=reference, commit=_commit)
 
 
 async def run_writer(conn, *, call: CallFn, max_chars: int = 500) -> tuple[str, str]:

@@ -108,6 +108,7 @@ def _make_draft_fn(draft_calls: list):
             output=_writer_output(),
             pool=_clean_pool(),
             body="科创50昨日收涨0.36%。[1]",
+            reference="",
             commit=_commit,
         )
     return _draft

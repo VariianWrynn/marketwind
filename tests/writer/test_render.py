@@ -1,5 +1,5 @@
 from marketwind.writer.domain import DraftClaim, DraftSentence, WriterOutput
-from marketwind.writer.render import MAX_CHARS, render_brief
+from marketwind.writer.render import MAX_CHARS, render_brief, render_source_tail
 
 
 def _out(sentences):
@@ -68,3 +68,30 @@ def test_no_marker_when_not_official():
         sentences=[DraftSentence("科创50涨0.36%。", ["c1"], ["S1"], "factual")])
     brief = render_brief(out, official_ids=set())
     assert "✓官方核实" not in brief.body
+
+
+def test_source_tail_empty_footnotes_is_empty_string():
+    assert render_source_tail([], {}) == ""
+
+
+def test_source_tail_single_entry_format():
+    tail = render_source_tail([(1, "s1")], {"s1": "https://finance.sina.com.cn/x"})
+    assert tail == "—— 来源 ——\n[1] finance.sina.com.cn — https://finance.sina.com.cn/x"
+
+
+def test_source_tail_url_is_bare_not_markdown():
+    tail = render_source_tail([(1, "s1")], {"s1": "https://sse.com.cn/d/1"})
+    assert "https://sse.com.cn/d/1" in tail
+    assert "](" not in tail
+
+
+def test_source_tail_multiple_entries_map_number_to_url():
+    tail = render_source_tail(
+        [(1, "s1"), (2, "s2")],
+        {"s1": "https://a.com/1", "s2": "https://b.com/2"},
+    )
+    assert tail.splitlines() == [
+        "—— 来源 ——",
+        "[1] a.com — https://a.com/1",
+        "[2] b.com — https://b.com/2",
+    ]
