@@ -5,8 +5,8 @@
 > `build_writer_prompt` demands a `session_date`. Plan under `docs/superpowers/plans/`.
 
 **Status:** complete, 2026-07-31. Five prompt defects found by audit and fixed. Full suite
-**357 passed** — the branch was cut from `896a388` (334 there) and rebased onto `d0eb80b` once
-PRs #10/#13/#11 merged; see *Rebase* below. Two of the five (issues
+**359 passed** — the branch was cut from `896a388` (334 there) and caught up to `d0eb80b` once
+PRs #10/#13/#11 merged; see *Catching up to master* below. Two of the five (issues
 [#14](https://github.com/VariianWrynn/marketwind/issues/14),
 [#15](https://github.com/VariianWrynn/marketwind/issues/15)) are behavioural bugs whose fix is
 **unproven until a live run** — the issues stay open deliberately (see *Open* below).
@@ -101,19 +101,21 @@ self-contained-claim example, so asserting on those would have passed without th
   after this branch was cut and ships the whole invariant: `category`/`methodology` on
   `DraftClaim`, `check_derived_methodology` as the Verifier's **7th** check, and its own
   `_OUTPUT_SPEC` field instruction. So the `_CONTRACT_INVARIANTS` line added here *restates* an
-  I12 rule the prompt already carried. Both survived the rebase deliberately — they say different
+  I12 rule the prompt already carried. Both survived the catch-up deliberately — they say different
   things (the invariant vs. the field to populate) — but whether the prompt needs both is an open
   trim call. See `docs/progress/i12-derived-methodology.md`.
 
-## Rebase onto master (2026-07-31)
+## Catching up to master (2026-07-31)
 
 The branch was cut from `896a388`; PRs #10, #13 and #11 merged to master while it was in flight, so
-it was rebased onto `d0eb80b`. Four collisions, resolved on the branch rather than left for the merge:
+master was **merged into the branch** (`1f80f1d`) — deliberately a merge and not a rebase, so all
+three original commits survive untouched and PR #16 kept its pushed history. Four collisions,
+resolved on the branch rather than left for the reviewer:
 
 | Collision | Resolution |
 |---|---|
 | `tests/writer/test_prompt.py` — #11's `test_prompt_teaches_derived_metric_methodology` against the new prompt tests | both kept; #11's call updated to the now-required `session_date` |
-| Two `assemble()` / `draft_report()` call sites that landed on master *after* this branch was cut — `test_bundle_reference_is_source_tail` (#10), `test_assemble_preserves_category_and_methodology` (#11) — failing `TypeError: missing keyword-only argument 'session_date'` | `session_date` threaded through, as its own commit so the rebase delta stays reviewable apart from the audit |
+| Two `assemble()` / `draft_report()` call sites that landed on master *after* this branch was cut — `test_bundle_reference_is_source_tail` (#10), `test_assemble_preserves_category_and_methodology` (#11) — failing `TypeError: missing keyword-only argument 'session_date'` | `session_date` threaded through, as its own commit so the catch-up delta stays reviewable apart from the audit |
 | `GAPS.md` **G2.2** — this branch listed I12 as open and the gate as **6** checks | master wins: #11 closed I12 and the gate is **7**. The I3b/I4 "Writer-prompt half" note survives, minus I12 |
 | `GAPS.md` **G2.7** — the ID was claimed by both this branch (`tests/prompt_regression/`) and master's `d0eb80b` (no CI) | master's is already published, so this branch's gap renumbered to **G2.8** and moved back into ID order |
 
