@@ -5,7 +5,9 @@
 > `build_writer_prompt` demands a `session_date`. Plan under `docs/superpowers/plans/`.
 
 **Status:** complete, 2026-07-31. Five prompt defects found by audit and fixed. Full suite
-**334 passed**. Two of the five (issues [#14](https://github.com/VariianWrynn/marketwind/issues/14),
+**357 passed** — the branch was cut from `896a388` (334 there) and rebased onto `d0eb80b` once
+PRs #10/#13/#11 merged; see *Rebase* below. Two of the five (issues
+[#14](https://github.com/VariianWrynn/marketwind/issues/14),
 [#15](https://github.com/VariianWrynn/marketwind/issues/15)) are behavioural bugs whose fix is
 **unproven until a live run** — the issues stay open deliberately (see *Open* below).
 
@@ -92,9 +94,32 @@ self-contained-claim example, so asserting on those would have passed without th
   `tests/writer/test_diagnostics.py::test_structural_sentences_not_counted` asserts an input
   production can no longer produce. Adopting the tightening therefore means deciding what to do
   with that guard too. Owner's call.
-- **Verifier-side mechanical checks for I3b / I12** remain unbuilt (G2.2). This work added the
-  *Writer-prompt half* only: the instructions are satisfiable in body text (an attribution prefix,
-  a stated methodology) without new schema fields, but nothing yet **enforces** them.
+- **The Verifier-side mechanical check for I3b** remains unbuilt (G2.2). This work added the
+  *Writer-prompt half* only: an attribution prefix is satisfiable in body text without a new
+  schema field, but nothing yet **enforces** it.
+- **I12 is the exception — it was already enforced before this branch landed.** PR #11 merged
+  after this branch was cut and ships the whole invariant: `category`/`methodology` on
+  `DraftClaim`, `check_derived_methodology` as the Verifier's **7th** check, and its own
+  `_OUTPUT_SPEC` field instruction. So the `_CONTRACT_INVARIANTS` line added here *restates* an
+  I12 rule the prompt already carried. Both survived the rebase deliberately — they say different
+  things (the invariant vs. the field to populate) — but whether the prompt needs both is an open
+  trim call. See `docs/progress/i12-derived-methodology.md`.
+
+## Rebase onto master (2026-07-31)
+
+The branch was cut from `896a388`; PRs #10, #13 and #11 merged to master while it was in flight, so
+it was rebased onto `d0eb80b`. Four collisions, resolved on the branch rather than left for the merge:
+
+| Collision | Resolution |
+|---|---|
+| `tests/writer/test_prompt.py` — #11's `test_prompt_teaches_derived_metric_methodology` against the new prompt tests | both kept; #11's call updated to the now-required `session_date` |
+| Two `assemble()` / `draft_report()` call sites that landed on master *after* this branch was cut — `test_bundle_reference_is_source_tail` (#10), `test_assemble_preserves_category_and_methodology` (#11) — failing `TypeError: missing keyword-only argument 'session_date'` | `session_date` threaded through, as its own commit so the rebase delta stays reviewable apart from the audit |
+| `GAPS.md` **G2.2** — this branch listed I12 as open and the gate as **6** checks | master wins: #11 closed I12 and the gate is **7**. The I3b/I4 "Writer-prompt half" note survives, minus I12 |
+| `GAPS.md` **G2.7** — the ID was claimed by both this branch (`tests/prompt_regression/`) and master's `d0eb80b` (no CI) | master's is already published, so this branch's gap renumbered to **G2.8** and moved back into ID order |
+
+`marketwind/writer/prompt.py` auto-merged — #11's `_OUTPUT_SPEC` instruction and this branch's
+`_CONTRACT_INVARIANTS` block sit in different parts of the file. See the I12 bullet under *Out of
+scope* for the overlap that leaves.
 
 ## Open — must not be dropped
 
@@ -105,5 +130,5 @@ self-contained-claim example, so asserting on those would have passed without th
 - **This shipped ungated.** CLAUDE.md §8.3 requires `tests/prompt_regression/` on every Writer-prompt
   edit; that harness does not exist (`make eval-prompt` → `exit 1`) and neither does the
   ground-truth runner (G2.6, whose entry already says "build it before the next contract-semantics
-  change"). Both surfaced loudly rather than faked — see the new gap **G2.7**. The Law 3 rewording is
+  change"). Both surfaced loudly rather than faked — see the new gap **G2.8**. The Law 3 rewording is
   the highest-leverage prompt change in the project and it landed with no behavioural regression net.

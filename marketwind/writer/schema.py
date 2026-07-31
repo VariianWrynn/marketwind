@@ -13,6 +13,11 @@ from marketwind.writer.domain import DraftClaim, DraftSentence, WriterOutput
 
 _VALID_TYPES = {"factual", "structural"}
 
+_VALID_CATEGORIES = frozenset({
+    "quantitative", "temporal", "comparative", "attribution", "causal",
+    "quoted_inference", "freshness", "derived_metric", "correction",
+})
+
 
 class SchemaViolation(ValueError):
     """Raised when Writer output violates I8 (≈ RF-1: reject the whole report)."""
@@ -41,7 +46,12 @@ def parse_and_validate(
         unresolved = [q for q in qids if q not in valid_quote_ids]
         if unresolved:
             raise SchemaViolation(f"claim {cid} cites unknown quote_ids: {unresolved}")
-        claims.append(DraftClaim(local_id=cid, statement=statement, quote_ids=list(qids)))
+        cat = c.get("category", "quantitative")
+        meth = c.get("methodology")
+        if cat not in _VALID_CATEGORIES:
+            raise SchemaViolation(f"unknown claim category: {cat!r}")
+        claims.append(DraftClaim(local_id=cid, statement=statement, quote_ids=list(qids),
+                                 category=cat, methodology=meth))
         claim_ids_seen.add(cid)
 
     sentences: list[DraftSentence] = []

@@ -150,3 +150,26 @@ def check_no_first_person_inference(
                 detail=f"first-person inference token {m.group()!r} in claim statement",
             ))
     return violations
+
+
+# ---------------------------------------------------------------------------
+# Check 5 — I12: derived_metric claims must carry a methodology label
+# ---------------------------------------------------------------------------
+
+def check_derived_methodology(
+    output: WriterOutput,
+    pool_index: dict[str, tuple[PooledQuote, PooledSource]],
+) -> list[Violation]:
+    violations: list[Violation] = []
+    for claim in output.claims:
+        if claim.category == "derived_metric":
+            if claim.methodology is None or claim.methodology.strip() == "":
+                violations.append(Violation(
+                    check="I12",
+                    locus=claim.local_id,
+                    detail=(
+                        f"claim {claim.local_id!r} is category 'derived_metric' "
+                        "but has no methodology label"
+                    ),
+                ))
+    return violations

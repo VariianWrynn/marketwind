@@ -6,6 +6,8 @@
 
 > **⚠ The fixes ARE on `master` — mind your branch.** Every fix below is committed on `master`: the `Dockerfile` (`COPY citation`, `pip install`, Playwright + npmmirror + Aliyun apt mirror — commits `c35c2c1`, `fd6500e`, `d371883`, `ef03fed`) and the hermes compose / `.env.example` wiring (`8c24ef5`), now pushed to `origin/master`. **Caveat (obvious-fail — do not let this rot):** feature branches cut before this work (e.g. `fix/pr-10-…`) and any stale checkout still carry the **original** three-`COPY` / `--no-cache-dir` Dockerfile with no Playwright and no `citation/`. **Rebuild the report node from `master`, not from an old branch, or these fixes silently vanish.** This note is the record of what each fix is and why.
 
+> *Housekeeping (2026-07-31): this note was committed twice on divergent branches — `fb0e46c` on `master` and `cf809db` on `fix/pr-10-…` — so merging PR #10 hit an add/add conflict. Resolved in favour of the `master` copy (the one you are reading), because it is the later revision: it records the Dockerfile fixes as committed and pushed, while the branch copy still warned they lived only on the box. Nothing was lost — the branch copy was a strictly older snapshot of this same note.*
+
 ## What was found & fixed, by gap
 
 | Gap | Symptom on the box | Root cause | Fix (where) |
@@ -26,6 +28,7 @@ Supporting China-network mirrors already in place / used: PyPI = Tsinghua (`PIP_
 
 ## Open — must not be dropped
 
+- **⚠ Re-run `migrate` on the box before the next report — `0006` is not applied there.** The table row below says "run once after first `up`"; **that is no longer true.** PR #11 (merged 2026-07-31) adds `migrations/0006_i12_derived_metric.sql` (`claims.category`, `claims.methodology`, plus the I12 CHECK) and `persist_report` now writes those columns. A node that pulls the new code and rebuilds *without* re-running `docker compose … exec app python -m marketwind.storage.migrate` will fail at persist — loudly, but that is still a lost morning run. **Standing rule: a PR that adds a `migrations/*.sql` needs a migrate run on the node, not just an image rebuild.**
 - **Box fixes are committed & pushed to `master`** (`Dockerfile`, prod compose uv-interpreter mount, `.env.example` `HERMES_BIN`/`HERMES_UV_PYTHON_DIR`). Remaining risk is only branch hygiene — rebuild from `master` (see warning above).
 - **OSS backup** — attach the ECS RAM role, create bucket `mw-deadman`, add the 14-day `backups/pg/` lifecycle rule (owner console work; the backup sidecar fails loud until then).
 - **Dead-man watcher (`deploy/deadman-fc/`)** — the out-of-process silent-miss closer; ping URLs still unset in `.env`.

@@ -92,6 +92,13 @@ def test_prompt_demands_self_contained_claims():
     assert "自包含" in text or "主体" in text
 
 
+def test_prompt_teaches_derived_metric_methodology():
+    msgs = build_writer_prompt([], session_date=date(2026, 7, 23))
+    system = msgs[0]["content"]
+    assert "derived_metric" in system
+    assert "methodology" in system
+
+
 def test_prompt_states_tier_aware_law3():
     msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs)

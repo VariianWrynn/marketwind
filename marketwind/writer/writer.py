@@ -30,6 +30,8 @@ async def assemble(pool: list[PooledSource], *, call: CallFn, session_date: date
             local_id=c.local_id,
             statement=c.statement,
             quote_ids=[q_map[a] for a in c.quote_ids],
+            category=c.category,
+            methodology=c.methodology,
         )
         for c in validated.claims
     ]
