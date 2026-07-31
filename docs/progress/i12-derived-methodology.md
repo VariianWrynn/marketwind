@@ -2,7 +2,9 @@
 
 > **Read when:** touching the claim schema (category/methodology), the Writer prompt, or the Verifier's Law-5 gate.
 
-**Status:** complete. Branch `claude/eloquent-kare-c3d8b2`. Plan: `docs/superpowers/plans/2026-07-16-i12-derived-metric-methodology.md`. Full suite green (339 passed).
+**Status:** complete. Branch `claude/eloquent-kare-c3d8b2`. Plan: `docs/superpowers/plans/2026-07-16-i12-derived-metric-methodology.md`. Full suite green (339 passed). Closes the **I12 clause of `docs/GAPS.md` G2.2** (the rest of G2.2 stays open).
+
+**No separate design spec**, unlike most phases: the invariant was already fully specified upstream (`CITATION_CONTRACT.md:158`, `DECISIONS.md` D-12), so this went plan-first. The three design questions that *were* open were settled with the owner and are recorded under **Locked interpretations** below — that section is this phase's spec.
 
 **What this delivers:** end-to-end enforcement of Invariant I12 (`CITATION_CONTRACT.md:158`, decision D-12). A `derived_metric` claim — a source's own computation over base data (e.g. 长鑫 "日赚 3.6 亿", 合计减持额) — must now carry a `methodology` label stating the basis, or the report fails the Law-5 publication gate. Before this, a bare derived number passed the Verifier unlabeled.
 
