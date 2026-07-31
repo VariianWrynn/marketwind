@@ -94,6 +94,16 @@ self-contained-claim example, so asserting on those would have passed without th
   `tests/writer/test_diagnostics.py::test_structural_sentences_not_counted` asserts an input
   production can no longer produce. Adopting the tightening therefore means deciding what to do
   with that guard too. Owner's call.
+  **Follow-up (2026-07-31): the revert was incomplete.** The same sub-agent had also reworded that
+  test's docstring to assert the tightening *had* landed, and only the `schema.py` half was
+  reverted — the reword shipped in `8d6e747`. Master therefore carried a docstring stating "I8
+  validation rejects source_ids on a structural sentence" against a schema that does not, which is
+  the one outcome worse than either decision. Corrected in `fix/diagnostics-docstring-accuracy`:
+  the docstring again describes the permissive behaviour and points back here for the open call.
+  Re-checked while fixing it — `render.py` builds `order`/`footnotes` (and hence PR #10's source
+  tail) only inside the `sentence_type == "factual"` branch, so a stray structural `source_id`
+  still reaches no marker, no footnote and no tail. Reader impact remains nil; the residue is that
+  `persist_report` stores the stray id on the sentence row.
 - **The Verifier-side mechanical check for I3b** remains unbuilt (G2.2). This work added the
   *Writer-prompt half* only: an attribution prefix is satisfiable in body text without a new
   schema field, but nothing yet **enforces** it.

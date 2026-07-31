@@ -106,13 +106,17 @@ def test_measure_funnel_discriminating():
 def test_structural_sentences_not_counted():
     """sentence_type='structural' must not affect cited_sources / cited_domains.
 
-    The structural sentence below carries a real source_id on purpose, and that
-    shape is deliberately one a validated Writer output can no longer produce:
-    I8 validation rejects source_ids on a structural sentence (schema.py,
-    mirroring the claim_ids rule). measure_funnel takes a WriterOutput and
-    applies its own sentence_type guard regardless, and with source_ids=[] the
-    assertions below would hold even if that guard were deleted. The
-    schema-unreachable input is what keeps this test non-vacuous.
+    The structural sentence below carries a real source_id on purpose. I8
+    validation rejects a structural sentence bearing claim_ids but does NOT
+    forbid source_ids (marketwind/writer/schema.py), so this shape does reach
+    measure_funnel and the sentence_type guard is live, not defensive. With
+    source_ids=[] the assertions below would hold even if that guard were
+    deleted, making the test vacuous.
+
+    If I8 is ever tightened to reject source_ids here, this test and that guard
+    must be revisited together — the guard would become unreachable for
+    schema-valid input. That tightening is an open owner's call; see
+    docs/progress/writer-prompt-audit.md, "Out of scope / reverted".
     """
     s = _source("s1", "cls.cn", [_quote("q1", quant=True)])
     raw = [s]
