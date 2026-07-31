@@ -79,4 +79,5 @@ class DraftBundle:
     output: WriterOutput
     pool: list[PooledSource]
     body: str
+    reference: str                          # the "—— 来源 ——" second-message text; "" if none
     commit: Callable[[], Awaitable[str]]   # zero-arg async thunk → report_id

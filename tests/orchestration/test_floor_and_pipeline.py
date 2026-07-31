@@ -1,6 +1,7 @@
 """run_pipeline: returns RunOutcome; check-before-send guards duplicate publish."""
 import pytest
 
+from marketwind.gateway.im.base import SendResult
 from marketwind.gateway.im.label import DEV_PREFIX
 from marketwind.gateway.im.stub import StubSink
 from marketwind.orchestration.runner import run_pipeline
@@ -93,7 +94,7 @@ def _writer_output() -> WriterOutput:
     )
 
 
-def _make_bundle(pool: list[PooledSource]) -> tuple[DraftBundle, dict]:
+def _make_bundle(pool: list[PooledSource], reference: str = "") -> tuple[DraftBundle, dict]:
     """Return (bundle, spy) where spy["commit_calls"] increments on each commit()."""
     spy = {"commit_calls": 0}
 
@@ -105,6 +106,7 @@ def _make_bundle(pool: list[PooledSource]) -> tuple[DraftBundle, dict]:
         output=_writer_output(),
         pool=pool,
         body="科创50昨日收涨0.36%。[1]",
+        reference=reference,
         commit=_commit,
     )
     return bundle, spy
@@ -246,3 +248,116 @@ async def test_already_published_skips_send():
     assert draft_calls["n"] == 1       # guard fires AFTER verify, not as early short-circuit
     assert primary.sent == []          # no duplicate brief
     assert commit_spy["commit_calls"] == 0   # and no second commit
+
+
+# ── reference message tests ───────────────────────────────────────────────────
+
+class _RefFailSink:
+    """Succeeds on the report body, fails on the reference (header contains 来源)."""
+    def __init__(self, error="ref boom"):
+        self.error = error
+        self.sent = []
+    def send(self, text):
+        if "来源" in text:
+            return SendResult(ok=False, error=self.error)
+        self.sent.append(text)
+        return SendResult(ok=True)
+
+
+@pytest.mark.asyncio
+async def test_reference_sent_as_second_message():
+    primary = StubSink()
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=StubSink(), trace_id="t-ref",
+    )
+    assert out.status == PUBLISHED
+    assert out.detail is None
+    assert len(primary.sent) == 2
+    assert primary.sent[0].startswith(DEV_PREFIX)
+    assert primary.sent[1] == "—— 来源 ——\n[1] x.com — http://x/a"
+
+
+@pytest.mark.asyncio
+async def test_empty_reference_sends_only_one_message():
+    primary = StubSink()
+    bundle, _ = _make_bundle(_clean_pool(), reference="")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=StubSink(), trace_id="t-noref",
+    )
+    assert out.status == PUBLISHED
+    assert len(primary.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_reference_send_failure_is_published_with_detail():
+    primary, fallback = _RefFailSink(), _RefFailSink()
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-reffail",
+    )
+    assert out.status == PUBLISHED
+    assert "source-reference message FAILED" in out.detail
+    assert "t-reffail" in out.detail
+    assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)
+
+
+@pytest.mark.asyncio
+async def test_reference_failover_to_fallback_is_clean_publish():
+    """message 2 fails on primary but succeeds on fallback: Option A does NOT
+    trigger — the run is a clean PUBLISHED with no failure detail."""
+    primary = _RefFailSink(error="wechat down")   # ok on body, fails on 来源
+    fallback = StubSink()                          # succeeds on everything
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-failover",
+    )
+    assert out.status == PUBLISHED
+    assert out.detail is None
+    assert primary.sent and primary.sent[0].startswith(DEV_PREFIX)   # body via primary
+    assert fallback.sent == ["—— 来源 ——\n[1] x.com — http://x/a"]     # reference via fallback
+
+
+@pytest.mark.asyncio
+async def test_reference_failure_detail_names_both_channel_errors():
+    """On a both-channel failure, the ledger detail must preserve BOTH channel
+    errors — losing the primary's cause makes the failure untraceable."""
+    primary = _RefFailSink(error="wechat rate-limited")
+    fallback = _RefFailSink(error="feishu auth-expired")
+    bundle, _ = _make_bundle(_clean_pool(), reference="—— 来源 ——\n[1] x.com — http://x/a")
+
+    async def draft() -> DraftBundle:
+        return bundle
+
+    out = await run_pipeline(
+        sources=_above_floor(), draft=draft, judge=_fake_judge,
+        record_fail=_noop_record, already_published=_never,
+        primary=primary, fallback=fallback, trace_id="t-bothch",
+    )
+    assert out.status == PUBLISHED
+    assert "wechat rate-limited" in out.detail
+    assert "feishu auth-expired" in out.detail

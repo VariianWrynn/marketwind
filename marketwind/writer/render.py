@@ -8,6 +8,7 @@ the kept sentences so every surviving [n] resolves.
 
 from __future__ import annotations
 
+from marketwind.scout.outlets import domain_of
 from marketwind.writer.domain import RenderedBrief, RenderedSentence, WriterOutput
 
 MAX_CHARS = 500
@@ -37,6 +38,16 @@ def _render_kept(sentences, official_ids) -> tuple[list[RenderedSentence], list[
         )
     footnotes = [(i + 1, sid) for i, sid in enumerate(order)]
     return rendered, footnotes
+
+
+def render_source_tail(footnotes: list[tuple[int, str]], url_by_id: dict[str, str]) -> str:
+    if not footnotes:
+        return ""
+    lines = ["—— 来源 ——"]
+    for n, source_id in footnotes:
+        url = url_by_id[source_id]
+        lines.append(f"[{n}] {domain_of(url)} — {url}")
+    return "\n".join(lines)
 
 
 def render_brief(output: WriterOutput, max_chars: int = MAX_CHARS, official_ids: set[str] = frozenset()) -> RenderedBrief:
