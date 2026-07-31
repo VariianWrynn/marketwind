@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from marketwind.writer.domain import PooledQuote, PooledSource
 from marketwind.writer.writer import assemble
@@ -23,7 +24,7 @@ async def test_assemble_validates_stubbed_output(fixtures_dir_writer):
         assert any("QUOTE POOL" in m["content"] for m in messages)
         return content
 
-    out = await assemble(POOL, call=stub_call)
+    out = await assemble(POOL, call=stub_call, session_date=date(2026, 7, 23))
     # local_id passes through unchanged
     assert out.claims[0].local_id == "c-001"
     # alias q1 must be mapped back to real uuid QUO-1
@@ -45,4 +46,4 @@ async def test_assemble_rejects_unresolvable_ids():
 
     from marketwind.writer.schema import SchemaViolation
     with pytest.raises(SchemaViolation):
-        await assemble(POOL, call=bad_call)
+        await assemble(POOL, call=bad_call, session_date=date(2026, 7, 23))

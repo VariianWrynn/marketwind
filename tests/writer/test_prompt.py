@@ -1,3 +1,5 @@
+from datetime import date
+
 from marketwind.writer.domain import PooledQuote, PooledSource
 from marketwind.writer.prompt import alias_pool, build_writer_prompt
 
@@ -13,7 +15,7 @@ POOL = [
 
 
 def test_prompt_embeds_iron_laws_and_rationalizations():
-    msgs = build_writer_prompt(POOL)
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs)
     assert "NO FACTUAL SENTENCE WITHOUT A CLAIM_ID" in text   # Iron Laws inline
     assert "Rationalization" in text or "rationaliz" in text.lower()  # table inline
@@ -21,7 +23,7 @@ def test_prompt_embeds_iron_laws_and_rationalizations():
 
 
 def test_prompt_serializes_pool_ids_and_text():
-    msgs = build_writer_prompt(POOL)
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs)
     # Aliases must appear, not raw UUIDs
     assert "q1" in text
@@ -33,7 +35,7 @@ def test_prompt_serializes_pool_ids_and_text():
 
 
 def test_prompt_demands_json_no_freeform():
-    msgs = build_writer_prompt(POOL)
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs).lower()
     assert "json" in text
     assert "claims" in text and "sentences" in text
@@ -44,10 +46,28 @@ def test_prompt_demands_number_fidelity():
     # and never unit-convert-and-round. Anchored on the real failure where a
     # source's 17539.73万元 was rendered as 1.75亿元, breaking the arithmetic
     # and tripping the I10 contradiction check.
-    msgs = build_writer_prompt(POOL)
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs)
     assert "17539.73万元" in text
     assert "1.75亿元" in text
+
+
+def test_prompt_anchors_star50_scope():
+    # MarketWind is a 科创50 morning report, but the prompt used to state no scope
+    # at all — it only asked for a "昨日复盘 brief". Scope was therefore emergent
+    # from whatever the pool happened to hold, so it drifted silently: the
+    # 2026-07-24 smoke shipped a generic A-share recap whose only named stock was
+    # 中国巨石, a Shanghai main-board name (issue #15).
+    #
+    # Asserted on strings unique to the scope block: bare "科创50" and "688"
+    # already appear in the pool fixture and in the self-contained-claim example,
+    # so asserting on those would pass without the instruction and prove nothing.
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
+    text = " ".join(m["content"] for m in msgs)
+    assert "报道范围" in text          # the scope section exists
+    assert "sh000688" in text          # centred on the index itself
+    # Scope must never become fabrication pressure: it is subordinate to the pool.
+    assert "宁可范围不满足" in text
 
 
 def test_alias_pool_returns_correct_maps_and_rows():
@@ -63,10 +83,42 @@ def test_alias_pool_returns_correct_maps_and_rows():
 
 
 def test_prompt_demands_self_contained_claims():
-    msgs = build_writer_prompt(POOL)
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
     text = " ".join(m["content"] for m in msgs)
     # Each claim statement must name its own subject; no dangling 该股/该公司
     # references, because claims are verified in isolation. Root cause of the
     # 涨停-vs-15% I10 mis-binding (a subject-less "+15%" bound to 南芯科技).
     assert "该股" in text
     assert "自包含" in text or "主体" in text
+
+
+def test_prompt_states_tier_aware_law3():
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
+    text = " ".join(m["content"] for m in msgs)
+    # v0.5 / ADR-0003: primary-grade (tier >= TRUSTED) satisfies Law 3.
+    assert "PRIMARY-GRADE" in text
+    # The superseded absolute wording must be gone, not merely supplemented.
+    assert "NO QUANTITATIVE CLAIM WITHOUT A PRIMARY SOURCE" not in text
+    # eligible_pool already enforced Law 3, so the model must not re-litigate it.
+    assert "引用池已预先过滤" in text
+    # has_primary_trace: false is the single most misleading field in the row;
+    # the prompt must defuse it by name or the model self-restricts to ~2% of the pool.
+    assert "has_primary_trace" in text
+
+
+def test_prompt_carries_contract_invariants():
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
+    text = " ".join(m["content"] for m in msgs)
+    # CITATION_CONTRACT.md line 174 binds the prompt to carry these inline.
+    assert "I3b" in text
+    assert "I4" in text
+    assert "I12" in text
+    assert "derived_metric" in text   # I12's subject, not just its label
+    assert "单一来源" in text          # I3b's attributed-single branch
+
+
+def test_prompt_states_the_session_date():
+    msgs = build_writer_prompt(POOL, session_date=date(2026, 7, 23))
+    text = " ".join(m["content"] for m in msgs)
+    assert "2026-07-23" in text
+    assert "复盘的交易日" in text

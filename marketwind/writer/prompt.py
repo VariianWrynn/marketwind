@@ -9,6 +9,7 @@ hence the rationalization table is inlined as a self-correction guardrail. Per
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 from marketwind.writer.domain import PooledSource
@@ -21,11 +22,43 @@ _IRON_LAWS = """\
 THE IRON LAWS (violating the letter is violating the spirit):
 1. NO FACTUAL SENTENCE WITHOUT A CLAIM_ID
 2. NO CROSS-CLAIM SYNTHESIS IN A SINGLE SENTENCE
-3. NO QUANTITATIVE CLAIM WITHOUT A PRIMARY SOURCE
+3. NO QUANTITATIVE CLAIM WITHOUT A PRIMARY-GRADE SOURCE
 4. NO MODEL-GENERATED INFERENCE — EVER
 5. NO PUBLICATION WITHOUT FRESH VERIFIER PASS
 The only legitimate inference is quoted_inference: the source itself made the
 inference and you preserve its attribution (e.g. 据XX证券研报观点)."""
+
+# Law 3 / I3 clarification (v0.5, ADR-0003): the pool is pre-filtered.
+_LAW3_CLARIFICATION = """\
+关于法则3（PRIMARY-GRADE SOURCE）的说明：
+- "primary-grade"指以下任一条件满足：(a) 附有主要来源URL（attached_primary_url），
+  (b) 来源本身为一手来源（is_primary=true），或 (c) 来源域名达到 tier ≥ TRUSTED——
+  既包括交易所/监管机构（上交所、证监会）与证监会指定信息披露媒体（中证网、上证报、
+  证券时报、证券日报），也包括受信任财经媒体（财联社、第一财经、新浪财经、财新）。
+- 引用池已预先过滤：每一条出现在池中的定量引文（is_quantitative=true）均已通过
+  primary-grade检验，无需再次核查。
+- 字段 has_primary_trace 仅表示"是否附有单独的主要来源URL"，值为 false 并不表示
+  该引文不符合法则3，也不能作为回避引用该引文支撑数字的理由。绝大多数引文
+  has_primary_trace=false，但它们已经通过了域名级别的primary-grade校验。"""
+
+_SCOPE = """\
+报道范围(科创50):
+- 本简报的主题是科创50指数(sh000688)及其成分股(688开头)。开篇先写科创50指数本身的
+  表现,其次写688成分股的个股与公司事件。
+- 上证指数/创业板/其他行业板块只能作为背景陪衬,不得成为简报重心;不得把非科创板
+  标的(如主板600/601/603开头)当作科创板标的来写。
+- 范围服从引用池:若池中缺少科创50相关材料,就如实少写或不写,绝不可为满足范围而
+  编造、外推或夸大(违反法则1/4)。宁可范围不满足,也不可无中生有。"""
+
+_CONTRACT_INVARIANTS = """\
+合同不变量（CITATION_CONTRACT.md § 4，违反即自动拒绝）：
+- I1: 同一句话引用的所有claims必须语义对齐，不得跨claim合成新含义（法则2的句级实现）。
+- I3b: 定量claim须有≥2个独立来源佐证；若仅有单一来源，则句子必须携带归因前缀
+  （如"据财联社报道"）。
+- I4: 禁止模型自行推断；仅允许quoted_inference（来源本身作出的推断），且必须在正文中
+  保留来源归因（如"据XX证券研报观点"）。
+- I12: derived_metric类claim（来源对基础数据进行的二次计算，如日赚、合计减持额）须在
+  正文中注明计算方法或依据；直接写裸数字而不说明口径，即违反I12。"""
 
 _OUTPUT_SPEC = """\
 OUTPUT: a single JSON object, no prose, no markdown fences:
@@ -94,16 +127,25 @@ def _serialize_pool(pool: list[PooledSource]) -> str:
     return json.dumps(rows, ensure_ascii=False, indent=2)
 
 
-def build_writer_prompt(pool: list[PooledSource]) -> list[dict]:
+def build_writer_prompt(pool: list[PooledSource], *, session_date: date) -> list[dict]:
     rationalizations = _RATIONALIZATION.read_text(encoding="utf-8")
+    date_anchor = (
+        f"复盘的交易日：{session_date.isoformat()}。"
+        "本简报仅复盘该交易日（北京时间）发生的市场事实。"
+        "引用池中属于其他日期的材料不得作为该交易日的事实陈述。"
+    )
     system = "\n\n".join([
         "你是市风(MarketWind)的撰稿器(Writer)。只能基于给定的引用池(quote pool)装配中文简报。",
+        date_anchor,
         _IRON_LAWS,
+        _LAW3_CLARIFICATION,
+        _CONTRACT_INVARIANTS,
         "When you catch yourself rationalizing around a law, STOP. Known excuses and "
         "their rebuttals:\n\n" + rationalizations,
+        _SCOPE,
         _OUTPUT_SPEC,
     ])
-    user = "QUOTE POOL (assemble the 昨日复盘 brief from these only):\n" + _serialize_pool(pool)
+    user = "QUOTE POOL (assemble the 科创50 昨日复盘 brief from these only):\n" + _serialize_pool(pool)
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
