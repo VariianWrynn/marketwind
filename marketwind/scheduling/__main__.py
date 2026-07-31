@@ -134,9 +134,9 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
 
         label_prefix = DEV_PREFIX if settings.report_dev_label else ""
 
-        async def _draft():
+        async def _draft(d_prev):
             # Reserve the label's characters up front so body + label <= MAX_TOTAL (P1c).
-            return await draft_report(conn, call=call_deepseek,
+            return await draft_report(conn, call=call_deepseek, session_date=d_prev,
                                       max_chars=MAX_TOTAL - len(label_prefix))
 
         async def _record_fail(trace_id, violations, output):
@@ -161,7 +161,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
         outcome = await run_once(now, sessions=sessions, anchor=anchor,
                        tolerance_min=settings.premarket_tolerance_min,
                        ceiling_cst=time(hh, mm), gather=_gather,
-                       draft=_draft, judge=call_judge, record_fail=_record_fail,
+                       draft=lambda: _draft(prev), judge=call_judge, record_fail=_record_fail,
                        already_published=_already,
                        primary=primary, fallback=fallback,
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
@@ -228,9 +228,11 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             "main": settings.healthcheck_url_main,
         }
 
-        async def _draft():
+        async def _draft(d_prev):
             # Reserve the label's characters up front so body + label <= MAX_TOTAL (P1c).
-            return await draft_report(conn, call=call_deepseek,
+            # d_prev is the trading session date, passed explicitly (never captured from
+            # enclosing scope) to mirror the _gather pattern and avoid stale boot-day data.
+            return await draft_report(conn, call=call_deepseek, session_date=d_prev,
                                       max_chars=MAX_TOTAL - len(label_prefix))
 
         async def _record_fail(trace_id, violations, output):
@@ -243,7 +245,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             premarket_tol_min=settings.premarket_tolerance_min,
             main_tol_min=settings.main_tolerance_min,
             ceiling_cst=ceiling,
-            gather=lambda: _gather(now, prev), draft=_draft, judge=call_judge,
+            gather=lambda: _gather(now, prev), draft=lambda: _draft(prev), judge=call_judge,
             record_fail=_record_fail,
             primary=primary, fallback=fallback,
             trace_id=f"boot-{now:%Y%m%dT%H%M%S}",
@@ -266,7 +268,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
                 premarket_tol_min=settings.premarket_tolerance_min,
                 main_tol_min=settings.main_tolerance_min,
                 ceiling_cst=ceiling,
-                gather=lambda: _gather(fire_now, fire_prev), draft=_draft,
+                gather=lambda: _gather(fire_now, fire_prev), draft=lambda: _draft(fire_prev),
                 judge=call_judge, record_fail=_record_fail,
                 primary=primary, fallback=fallback,
                 trace_id=f"cron-{job_id}-{fire_now:%Y%m%dT%H%M%S}",

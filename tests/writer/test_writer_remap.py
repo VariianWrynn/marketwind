@@ -1,6 +1,8 @@
 """Test that assemble() preserves category/methodology across the alias-to-uuid remap."""
 
 import json
+from datetime import date
+
 from marketwind.writer.domain import PooledQuote, PooledSource
 from marketwind.writer.writer import assemble
 
@@ -26,7 +28,7 @@ async def test_assemble_preserves_category_and_methodology():
     async def stub_call(_messages):
         return content
 
-    out = await assemble(_pool(), call=stub_call)
+    out = await assemble(_pool(), call=stub_call, session_date=date(2026, 7, 23))
     assert out.claims[0].category == "derived_metric"
     assert out.claims[0].methodology == "按净利润计"
     assert out.claims[0].quote_ids == ["uuid-q"]  # alias remapped to real uuid

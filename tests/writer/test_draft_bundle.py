@@ -6,6 +6,7 @@ No real DB needed — load_pool and persist_report are monkeypatched.
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 
@@ -99,7 +100,7 @@ async def test_draft_report_defers_persistence(monkeypatch):
     monkeypatch.setattr("marketwind.writer.runner.persist_report", spy)
 
     dummy_conn = object()
-    bundle = await draft_report(dummy_conn, call=_stub_call)
+    bundle = await draft_report(dummy_conn, call=_stub_call, session_date=date(2026, 7, 23))
 
     # KEY assertion: persist has NOT been called yet
     assert spy.calls == 0, (
@@ -127,7 +128,7 @@ async def test_bundle_carries_output_and_pool(monkeypatch):
     monkeypatch.setattr("marketwind.writer.runner.persist_report", spy)
 
     dummy_conn = object()
-    bundle = await draft_report(dummy_conn, call=_stub_call)
+    bundle = await draft_report(dummy_conn, call=_stub_call, session_date=date(2026, 7, 23))
 
     # eligible_pool returns a filtered copy (I3 mitigation), so object identity no
     # longer holds; assert the pool is carried through by content. Both canned
@@ -148,5 +149,5 @@ async def test_bundle_reference_is_source_tail(monkeypatch):
     monkeypatch.setattr("marketwind.writer.runner.load_pool", fake_load_pool)
     monkeypatch.setattr("marketwind.writer.runner.persist_report", _PersistSpy())
 
-    bundle = await draft_report(object(), call=_stub_call)
+    bundle = await draft_report(object(), call=_stub_call, session_date=date(2026, 7, 23))
     assert bundle.reference == "—— 来源 ——\n[1] m.cls.cn — https://m.cls.cn/a/1"

@@ -1,6 +1,6 @@
 """Writer-side persistence tests (real Postgres via DATABASE_URL)."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 import asyncpg
 import pytest
@@ -108,7 +108,7 @@ async def test_run_writer_end_to_end_with_stub(conn, fixtures_dir_writer):
     async def stub_call(messages):
         return content
 
-    report_id, body = await run_writer(conn, call=stub_call)
+    report_id, body = await run_writer(conn, call=stub_call, session_date=date(2026, 7, 23))
     assert body.endswith("[1]")
     n_sent = await conn.fetchval(
         "select count(*) from sentences where report_id=$1;", report_id

@@ -7,6 +7,7 @@ live wiring passes writer.client.call_deepseek.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import date
 
 from marketwind.writer.domain import DraftClaim, DraftSentence, PooledSource, WriterOutput
 from marketwind.writer.prompt import alias_pool, build_writer_prompt
@@ -15,8 +16,8 @@ from marketwind.writer.schema import parse_and_validate
 CallFn = Callable[[list[dict]], Awaitable[str]]
 
 
-async def assemble(pool: list[PooledSource], *, call: CallFn) -> WriterOutput:
-    messages = build_writer_prompt(pool)
+async def assemble(pool: list[PooledSource], *, call: CallFn, session_date: date) -> WriterOutput:
+    messages = build_writer_prompt(pool, session_date=session_date)
     raw = await call(messages)
 
     # Validate against alias id-sets (what the model sees and cites)
