@@ -4,7 +4,7 @@
 
 **Status:** in progress, 2026-07-24. The stack runs on the Aliyun ECS report node and pushed a real (DEV-labelled) report to WeChat — see `cloud-smoke-stage2.md`. This is the **Stage 4 cloud cutover** that `deployment-live-smoke.md` deferred as "mechanical follow-up after the node is purchased." It was **not** mechanical: running the image on a real China-network box surfaced three image-packaging gaps and one delivery-path gap, all of the same class (the container was missing something the code assumes at runtime).
 
-> **⚠ Repo is behind the box (obvious-fail — do not let this rot).** Every fix below was applied and verified **on the ECS box**, but at time of writing the repo (`HEAD 70e757c`) does **not** contain them: `Dockerfile` is back to its original three-`COPY` / `--no-cache-dir` form, and the prod compose / `.env.example` hermes wiring is not committed. The box works; the repo does not reproduce the box. **These must be committed before the next `git pull`-and-rebuild, or the fixes are silently lost.** This note is the record of what to re-apply.
+> **⚠ The fixes ARE on `master` — mind your branch.** Every fix below is committed on `master`: the `Dockerfile` (`COPY citation`, `pip install`, Playwright + npmmirror + Aliyun apt mirror — commits `c35c2c1`, `fd6500e`, `d371883`, `ef03fed`) and the hermes compose / `.env.example` wiring (`8c24ef5`), now pushed to `origin/master`. **Caveat (obvious-fail — do not let this rot):** feature branches cut before this work (e.g. `fix/pr-10-…`) and any stale checkout still carry the **original** three-`COPY` / `--no-cache-dir` Dockerfile with no Playwright and no `citation/`. **Rebuild the report node from `master`, not from an old branch, or these fixes silently vanish.** This note is the record of what each fix is and why.
 
 ## What was found & fixed, by gap
 
@@ -26,7 +26,7 @@ Supporting China-network mirrors already in place / used: PyPI = Tsinghua (`PIP_
 
 ## Open — must not be dropped
 
-- **Commit the box fixes to the repo (highest priority).** `Dockerfile` (Playwright + China mirrors + `COPY citation`), prod compose (uv-interpreter mount), `.env.example` (`HERMES_BIN`, `HERMES_UV_PYTHON_DIR`). Until then the repo cannot rebuild the working image and a `git pull` on the box would regress it.
+- **Box fixes are committed & pushed to `master`** (`Dockerfile`, prod compose uv-interpreter mount, `.env.example` `HERMES_BIN`/`HERMES_UV_PYTHON_DIR`). Remaining risk is only branch hygiene — rebuild from `master` (see warning above).
 - **OSS backup** — attach the ECS RAM role, create bucket `mw-deadman`, add the 14-day `backups/pg/` lifecycle rule (owner console work; the backup sidecar fails loud until then).
 - **Dead-man watcher (`deploy/deadman-fc/`)** — the out-of-process silent-miss closer; ping URLs still unset in `.env`.
 - **`pip install` vs `--no-cache-dir`** — dropping `--no-cache-dir` speeds rebuilds but bloats the layer; only matters when the install layer is re-run. Owner reverted it; note for whoever re-commits the Dockerfile.

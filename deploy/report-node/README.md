@@ -54,19 +54,32 @@ python3 deploy/report-node/check_keys.py   # checks DeepSeek + Bocha (+ Bark if 
 ```
 hermes gateway setup   # renders a terminal QR over SSH -- scan with your phone
 ```
-Creds persist under the mounted `~/.hermes` and survive restarts. Keep the session warm
-with the daily clawbot keepalive (ADR-0002); hard expiry (`errcode=-14`) needs a re-scan --
-the FC watcher pages you if a report silently fails to deliver.
+Creds persist under the mounted `~/.hermes` and survive restarts.
+
+> **Owner responsibility — daily keepalive (ADR-0002).** The WeChat iLink session goes
+> cold after ~24h with no inbound message and a proactive push then fails (`ret=-2`,
+> mislabeled stale-session; see `CLAUDE.md` §8). Keeping it warm is a **manual owner task**:
+> send a message back to the claw/bot each day so the session stays alive. There is no
+> automated warmer (P2b §8.2 is deliberately unbuilt). Hard expiry (`errcode=-14`) needs a
+> full re-scan via `hermes gateway setup`. The FC dead-man watcher pages you (Bark) if a
+> report silently fails to deliver — but the daily keepalive is what prevents that.
 
 ## 8. Bring up the stack
 ```
 docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml up -d --build
 ```
 
-## 9. OSS lifecycle (bound backup cost)
+## 9. Apply DB migrations (once after first `up`, and after any deploy adding new migration files)
+```
+docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml exec app python -m marketwind.storage.migrate
+```
+Idempotent (safe to re-run). Nothing runs this automatically — skip it on a fresh deploy and the
+`scheduler` crash-loops on `relation "run_ledger" does not exist` the first time it queries the DB.
+
+## 10. OSS lifecycle (bound backup cost)
 In the OSS console for `mw-deadman`, add a lifecycle rule: prefix `backups/pg/`, expire after **14 days**.
 
-## 10. Verify
+## 11. Verify
 - Run **`docs/runbooks/go-live-smoke.md` Stage 3** (autonomous trigger -> report -> WeChat push).
 - Confirm a backup object appears: `backups/pg/marketwind-<today>.sql.gz` in `mw-deadman`.
 - Confirm the FC watcher received a ping after a successful delivery (state object updated), and

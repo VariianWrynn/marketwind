@@ -15,6 +15,13 @@ services:
     # Cron is wall-clock; the cloud box must run Asia/Shanghai or reports fire 8h off.
     environment:
       TZ: Asia/Shanghai
+    # WeChat delivery reuses the HOST's git-installed hermes venv (py3.11) in-container
+    # (ADR-0001). The base compose already mounts ~/.hermes (creds + the venv itself) and
+    # passes HERMES_BIN. But the venv's interpreter is a uv-managed standalone python that
+    # lives OUTSIDE ~/.hermes, so its shebang breaks in-container unless we mount that dir
+    # too. Point HERMES_BIN at the venv entrypoint in .env. See README "WeChat delivery".
+    volumes:
+      - ${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:ro
 
   backup:
     build:

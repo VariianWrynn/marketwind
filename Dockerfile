@@ -10,8 +10,22 @@ ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 COPY pyproject.toml ./
 COPY marketwind ./marketwind
 COPY migrations ./migrations
+# The Writer reads citation/rationalization-table.md at runtime (writer/prompt.py);
+# other citation/ companions are loaded by the Verifier. Ship the whole small dir.
+COPY citation ./citation
 
-RUN pip install --no-cache-dir .
+RUN pip install .
+
+# Scout's crawler (gather_live) launches headless Chromium via Playwright. The pip
+# package ships no browser binary, so fetch it + its OS libs at build time, or every
+# report run dies with "Executable doesn't exist". China network: both downloads
+# crawl on the default hosts, so use domestic mirrors — npmmirror for the browser
+# binary, Aliyun for the Debian apt packages that `--with-deps` installs.
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
+      [ -f "$f" ] && sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' "$f"; \
+    done; true
+RUN playwright install --with-deps chromium
 
 EXPOSE 8000
 
