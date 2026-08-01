@@ -94,6 +94,7 @@ Locked design decisions. **Changing any of them requires an ADR** (process at th
 | D-28 | **No overseas-site crawling.** Domestic deployment only; all domestic-media reporting — including its coverage of overseas markets (overnight US, Philly SOX) — is retained. Drops the overseas-worker / proxy complexity entirely |
 | D-29 | **Report archival: dual-write markdown + structured JSON** (human-friendly + machine-friendly for cross-report consistency and future analysis) |
 | D-30 | **Project name: MarketWind (市风)** |
+| D-32 | **The stack applies DB migrations at boot.** A one-shot `migrate` compose service runs `python -m marketwind.storage.migrate` and `app`/`scheduler` gate on `service_completed_successfully`; the runner now fails loud when it finds no migration files. Overturns the previously-documented "migrations are owner-run" — see [ADR-0004](docs/adr/0004-stack-applies-migrations.md) |
 
 ---
 
