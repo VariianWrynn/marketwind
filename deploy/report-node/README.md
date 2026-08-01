@@ -30,10 +30,15 @@ sudo timedatectl set-timezone Asia/Shanghai   # cron is wall-clock -- required
 
 ## 5. Get the code (private git remote)
 ```
-git clone https://github.com/VariianWrynn/marketwind.git
+git clone git@github.com:VariianWrynn/marketwind.git
 cd marketwind
 ```
+SSH, not HTTPS: this network resets `git`-over-HTTPS to `github.com:443` (`CLAUDE.md` §10).
+Do not "fix" this back to an `https://` remote.
+
 Updates later: `git pull && docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml up -d --build`.
+> With `COMPOSE_FILE` uncommented in `.env`, a bare `docker compose up -d --build` is
+> equivalent to the two-`-f` form spelled out here. See `DEPLOY.md` §3.
 
 ## 6. Configure secrets
 ```
@@ -68,13 +73,22 @@ Creds persist under the mounted `~/.hermes` and survive restarts.
 ```
 docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml up -d --build
 ```
+> Same as above: with `COMPOSE_FILE` set in `.env`, bare `docker compose up -d --build` works.
 
-## 9. Apply DB migrations (once after first `up`, and after any deploy adding new migration files)
+## 9. DB migrations — applied automatically (ADR-0004)
+No manual step. A one-shot `migrate` service applies `migrations/*.sql` on every `up`, and
+`app`/`scheduler` do not start until it exits `0`. A deploy that adds migration files needs
+only `git pull && docker compose up -d --build`.
+
+The manual invocation remains available for a targeted re-run (idempotent, safe):
 ```
 docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml exec app python -m marketwind.storage.migrate
 ```
-Idempotent (safe to re-run). Nothing runs this automatically — skip it on a fresh deploy and the
-`scheduler` crash-loops on `relation "run_ledger" does not exist` the first time it queries the DB.
+To confirm the schema landed, check `migrate` exited 0 — it is only visible with `-a`, since
+a successful one-shot service is absent from a plain `docker compose ps`:
+```
+docker compose ps -a       # migrate -> Exited (0)
+```
 
 ## 10. OSS lifecycle (bound backup cost)
 In the OSS console for `mw-deadman`, add a lifecycle rule: prefix `backups/pg/`, expire after **14 days**.
