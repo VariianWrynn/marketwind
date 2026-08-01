@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: marketwind
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U marketwind -d marketwind"]
       interval: 5s
@@ -63,3 +65,8 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
+# Named so `docker compose down` is survivable. Redis deliberately gets no volume:
+# nothing durable is stored there, and adding one would imply a guarantee we don't rely on.
+volumes:
+  pgdata:

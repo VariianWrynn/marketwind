@@ -1,0 +1,34 @@
+"""Structural guards on the compose files.
+
+Only constraints that are NOT obvious from reading the YAML belong here — a test
+that restates the file it just parsed is tautological (CLAUDE.md §4②). Each test
+below pins something a later editor would plausibly and wrongly simplify away.
+
+Every lookup goes through .get(...) so a missing key fails as an assertion, not a
+KeyError — a KeyError fires identically for a good test and a broken one and so
+proves nothing (CLAUDE.md §8.2).
+"""
+
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+BASE = ROOT / "docker-compose.yml"
+PROD = ROOT / "deploy" / "report-node" / "docker-compose.prod.yml"
+
+
+def _load(path: Path) -> dict:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def test_postgres_data_lives_on_a_named_volume():
+    compose = _load(BASE)
+    mounts = compose.get("services", {}).get("postgres", {}).get("volumes", []) or []
+    assert any(str(m).startswith("pgdata:") for m in mounts), (
+        "postgres must mount the named volume pgdata; on an anonymous volume a plain "
+        "`docker compose down` destroys the database"
+    )
+    assert "pgdata" in (compose.get("volumes") or {}), (
+        "pgdata must be declared in the top-level volumes: block"
+    )
