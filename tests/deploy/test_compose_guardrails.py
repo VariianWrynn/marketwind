@@ -78,3 +78,23 @@ def test_scheduler_healthcheck_also_exercises_the_venv_interpreter():
         "testing HERMES_BIN alone cannot see a dangling uv interpreter - the actual "
         "ADR-0001 failure mode. Do not simplify this to `test -x $HERMES_BIN`."
     )
+
+
+def test_env_example_ships_compose_file_commented_and_correctly_ordered():
+    lines = (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
+    hits = [ln for ln in lines if "COMPOSE_FILE=" in ln]
+    assert hits, "COMPOSE_FILE must be present in .env.example for the node to uncomment"
+    line = hits[0]
+    assert line.lstrip().startswith("#"), (
+        "must ship COMMENTED OUT - active it breaks the Windows dev box three ways "
+        "(path separator, `make dev` launching the prod stack, ${OSS_BUCKET:?} "
+        "hard-failing every compose command). DEPLOY.md makes uncommenting an explicit step."
+    )
+    assert line.split("COMPOSE_FILE=", 1)[1].strip() == (
+        "docker-compose.yml:deploy/report-node/docker-compose.prod.yml"
+    ), "base file first, prod override second - the override must win"
+    assert any(ln.startswith("COMPOSE_PROJECT_NAME=marketwind") for ln in lines), (
+        "pin the project name: the pgdata volume is <project>_pgdata, and the project "
+        "otherwise derives from the directory - a re-clone into marketwind-1 would "
+        "silently attach a different, empty volume"
+    )
