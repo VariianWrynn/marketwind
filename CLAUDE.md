@@ -146,6 +146,7 @@ When designing any module, ask how it behaves under unattended, repeated, calend
 | `citation/glossary.md` | single source of terms | throughout |
 | `ARCHITECTURE.md` | 6-layer, agent boundaries, known gaps | when designing a module |
 | `DECISIONS.md` | locked decisions + ADR process | before changing any approach |
+| `DEPLOY.md` | agent-facing deploy + operate runbook (gates, prohibited ops, escalation) | deploying or operating the ECS report node |
 | `tests/citation_ground_truth/samples.md` | 12 labeled samples (RED baseline) | when writing Verifier tests |
 | `docs/progress/<phase>.md` | per-sub-phase "what was done" notes | picking up / resuming a built layer |
 | `docs/GAPS.md` | open gaps by tier + *Recently closed* | choosing what to build next; **closing a gap you just shipped** |

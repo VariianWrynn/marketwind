@@ -4,6 +4,12 @@
 
 > A STAR50 (科创50) financial morning-report agent: every pre-market it autonomously generates a **fully source-traceable** Chinese deep-dive report, pushes it over IM, and supports two-way follow-up.
 
+**If you are an agent deploying this repository to the report node, read [`DEPLOY.md`](DEPLOY.md).**
+It is the authoritative, self-contained runbook for deploying and operating the stack on the
+Aliyun ECS box, and it is complete on its own — you do not need to read the compose files or
+the application source to run a deploy. `deploy/report-node/README.md` is the separate,
+owner-facing guide for *provisioning* that box (ECS sizing, security groups, RAM role, OSS).
+
 ## What it is
 
 Every factual sentence in the report can be reverse-resolved to its original URL and raw-text span. Quantitative data is forced back to a primary source. The model is not allowed to fabricate any judgment the source didn't state. The output report is in Chinese; the codebase and docs are in English.
@@ -31,6 +37,7 @@ CLAUDE.md                          # entry: principles + boundaries + workflow (
 CITATION_CONTRACT.md               # root spec: Iron Laws + data model + invariants (v0.4)
 DECISIONS.md                       # locked decisions + ADR process (read before changing an approach)
 ARCHITECTURE.md                    # 6 layers + agent boundaries + known gaps
+DEPLOY.md                          # deploy + operate the ECS report node (agent-facing runbook)
 citation/
   rationalization-table.md         # writer excuse/rebuttal table
   red-flags.md                     # whole-report reject conditions

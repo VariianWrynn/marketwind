@@ -7,6 +7,8 @@ services:
       POSTGRES_DB: marketwind
     ports:
       - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U marketwind -d marketwind"]
       interval: 5s
@@ -23,6 +25,23 @@ services:
       timeout: 3s
       retries: 10
 
+  # Applies migrations/*.sql and exits; app and scheduler will not start until it
+  # exits 0 (ADR-0004). The runner fails loud if it finds no migration files, so a
+  # clean exit really does mean "schema applied".
+  # REDIS_URL is NOT optional here even though migration never touches Redis:
+  # config.py instantiates Settings() at import time and redis_url has no default,
+  # so without it this container dies in validation and nothing downstream ever starts.
+  migrate:
+    build: .
+    command: ["python", "-m", "marketwind.storage.migrate"]
+    environment:
+      DATABASE_URL: postgresql://marketwind:marketwind@postgres:5432/marketwind
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   app:
     build: .
     environment:
@@ -30,11 +49,23 @@ services:
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
+    # /health returns 200 only when Postgres AND Redis are reachable, 503 otherwise,
+    # and urlopen raises on 503 — so the exit code falls out with no extra logic.
+    # Must be stdlib python: python:3.11-slim ships neither curl nor wget.
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # scheduler — restart-durable autonomous daemon (pre-market + 07:00 cron).
   # Default: in-container send; requires `hermes` CLI on image PATH + ro creds mount below.
@@ -62,4 +93,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+# Named so `docker compose down` is survivable. Redis deliberately gets no volume:
+# nothing durable is stored there, and adding one would imply a guarantee we don't rely on.
+volumes:
+  pgdata:
