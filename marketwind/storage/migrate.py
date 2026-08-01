@@ -13,6 +13,21 @@ from marketwind.config import settings
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "migrations"
 
+
+def pending_migration_paths() -> list[Path]:
+    """Every migration on disk, in filename order. Raises if there are none.
+
+    An empty result means the directory moved, not that the schema is current, so
+    returning it would let a caller exit 0 against an unmigrated database.
+    """
+    paths = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    if not paths:
+        raise RuntimeError(
+            f"no *.sql migrations under {MIGRATIONS_DIR} — refusing to report "
+            "success against an unmigrated database"
+        )
+    return paths
+
 # The bootstrap migration creates schema_migrations itself, so we ensure the
 # table exists before consulting it.
 _ENSURE_TABLE = """
@@ -30,7 +45,7 @@ async def apply_migrations(conn: asyncpg.Connection) -> list[str]:
     already = {row["version"] for row in applied_rows}
 
     newly_applied: list[str] = []
-    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+    for path in pending_migration_paths():
         version = path.stem
         if version in already:
             continue
