@@ -41,3 +41,15 @@ def test_app_healthcheck_probes_with_stdlib_python_not_curl():
         "the image is python:3.11-slim, which ships neither curl nor wget — a curl "
         "probe would mark app unhealthy forever, the exact false signal this guards"
     )
+
+
+def test_migrate_service_sets_redis_url_even_though_it_never_uses_redis():
+    services = _load(BASE).get("services", {})
+    env = services.get("migrate", {}).get("environment", {}) or {}
+    assert "REDIS_URL" in env, (
+        "config.py declares redis_url with no default and instantiates Settings() at "
+        "import time, and .env is not in the image - a migrate service given only "
+        "DATABASE_URL dies in pydantic validation, never satisfies "
+        "service_completed_successfully, and blocks app+scheduler from ever starting. "
+        "This looks unnecessary. It is not. Do not remove it."
+    )
