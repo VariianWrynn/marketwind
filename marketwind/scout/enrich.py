@@ -20,11 +20,16 @@ from marketwind.scout.primary import primary_venue_for
 ClassifyFn = Callable[[str], Awaitable[ClaimRef | None]]
 TraceFn = Callable[[str, str, date], Awaitable[list[str]]]
 FetchFn = Callable[[str], Awaitable[str]]
+FailureFn = Callable[[str, str, str], Awaitable[None]]  # stage, locus, detail
+
+
+async def _ignore_failure(stage: str, locus: str, detail: str) -> None:
+    """Default recorder: offline callers (tests, smoke) keep the old behaviour."""
 
 
 async def _resolve(quote: Quote, *, classify: ClassifyFn, trace: TraceFn,
                    fetch: FetchFn, constituents: dict[str, str], on_date: date,
-                   rel_tol: float) -> str | None:
+                   rel_tol: float, on_failure: FailureFn) -> str | None:
     """Return a number-verified primary URL for this quote, or None."""
     if not quote.is_quantitative:
         return None
@@ -37,12 +42,14 @@ async def _resolve(quote: Quote, *, classify: ClassifyFn, trace: TraceFn,
         return None  # exchange / regulator venues are out of scope (recorded gap)
     try:
         candidates = await trace(ref.claim_type, ref.symbol, on_date)
-    except Exception:
+    except Exception as exc:
+        await on_failure("enrich_trace", f"{ref.claim_type}:{ref.symbol}", repr(exc))
         return None  # a trace failure degrades safely
     for url in candidates:
         try:
             disclosure = await fetch(url)
-        except Exception:
+        except Exception as exc:
+            await on_failure("enrich_fetch", url, repr(exc))
             continue  # this candidate's fetch failed → try the next
         if amount_matches(quote.text, disclosure, rel_tol=rel_tol):
             return url  # THE GUARD: disclosure must carry the quote's number
@@ -52,14 +59,15 @@ async def _resolve(quote: Quote, *, classify: ClassifyFn, trace: TraceFn,
 async def enrich_primary(sources: list[Source], *, classify: ClassifyFn,
                          trace: TraceFn, fetch: FetchFn,
                          constituents: dict[str, str], on_date: date,
-                         rel_tol: float = 0.02) -> list[Source]:
+                         rel_tol: float = 0.02,
+                         on_failure: FailureFn = _ignore_failure) -> list[Source]:
     out: list[Source] = []
     for src in sources:
         new_quotes: list[Quote] = []
         for q in src.quotes:
             url = await _resolve(q, classify=classify, trace=trace, fetch=fetch,
                                  constituents=constituents, on_date=on_date,
-                                 rel_tol=rel_tol)
+                                 rel_tol=rel_tol, on_failure=on_failure)
             new_quotes.append(replace(q, attached_primary_url=url) if url else q)
         out.append(replace(src, quotes=new_quotes))
     return out
@@ -76,12 +84,15 @@ async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - 
     from marketwind.scout.cninfo_pdf import fetch_cninfo_disclosure
     from marketwind.scout.market import fetch_star50_constituents
     from marketwind.scout.primary import trace_to_primary
-    from marketwind.storage.repo import persist_enriched
+    from marketwind.storage.repo import persist_enriched, record_fetch_failure
 
     constituents = fetch_star50_constituents()
 
     async def _classify(text):
         return None  # DeepSeek fallback is a follow-up; rules-only live for now
+
+    async def _on_failure(stage, locus, detail):
+        await record_fetch_failure(conn, stage=stage, locus=locus, detail=detail)
 
     async def _trace(claim_type, symbol, d):
         return await trace_to_primary(claim_type, symbol, d)
@@ -93,6 +104,6 @@ async def enrich_primary_live(conn, sources, *, on_date):  # pragma: no cover - 
 
         enriched = await enrich_primary(sources, classify=_classify, trace=_trace,
                                         fetch=_fetch, constituents=constituents,
-                                        on_date=on_date)
+                                        on_date=on_date, on_failure=_on_failure)
         await persist_enriched(conn, enriched)
         return enriched

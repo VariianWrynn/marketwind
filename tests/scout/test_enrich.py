@@ -175,6 +175,51 @@ async def test_resolve_empty_candidate_list_no_attach():
     assert out[0].quotes[0].attached_primary_url is None
 
 
+async def test_trace_failure_is_reported():
+    """A cninfo trace outage must surface, not vanish behind a bare no-attach."""
+    failures = []
+
+    async def trace(ct, sym, on_date):
+        raise RuntimeError("cninfo 503")
+
+    async def on_failure(stage, locus, detail):
+        failures.append((stage, locus, detail))
+
+    await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                         classify=_classify_none, trace=trace, fetch=_never_fetch,
+                         constituents=CONS, on_date=NOW.date(), on_failure=on_failure)
+    assert len(failures) == 1, f"expected 1 reported failure, got {failures}"
+    stage, locus, detail = failures[0]
+    assert stage == "enrich_trace"
+    assert locus == "earnings:688981"
+    assert "cninfo 503" in detail
+
+
+async def test_disclosure_fetch_failure_is_reported():
+    """Each failed disclosure candidate is reported, and the pass still degrades."""
+    failures = []
+
+    async def trace(ct, sym, on_date):
+        return ["https://cninfo.com.cn/d1"]
+
+    async def fetch(url):
+        raise RuntimeError("pdf 500")
+
+    async def on_failure(stage, locus, detail):
+        failures.append((stage, locus, detail))
+
+    out = await enrich_primary([_src([_q("中芯国际净利润3.6亿元")])],
+                               classify=_classify_none, trace=trace, fetch=fetch,
+                               constituents=CONS, on_date=NOW.date(),
+                               on_failure=on_failure)
+    assert out[0].quotes[0].attached_primary_url is None
+    assert len(failures) == 1, f"expected 1 reported failure, got {failures}"
+    stage, locus, detail = failures[0]
+    assert stage == "enrich_fetch"
+    assert locus == "https://cninfo.com.cn/d1"
+    assert "pdf 500" in detail
+
+
 async def test_resolve_skips_candidate_whose_fetch_errors():
     async def trace(ct, sym, on_date):
         return ["https://cninfo.com.cn/d1", "https://cninfo.com.cn/d2"]

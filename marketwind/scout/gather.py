@@ -26,10 +26,16 @@ SearchFn = Callable[[str], Awaitable[list[tuple[str, str]]]]
 FetchFn = Callable[[str], Awaitable[str]]
 ParseFn = Callable[[str], tuple[str, list[Quote]]]
 PersistFn = Callable[[Source], Awaitable[None]]
+FailureFn = Callable[[str, str, str], Awaitable[None]]  # stage, locus, detail
+
+
+async def _ignore_failure(stage: str, locus: str, detail: str) -> None:
+    """Default recorder: offline callers (tests, smoke) keep the old behaviour."""
 
 
 async def build_pool(*, prev_session: date, names: list[str] = (), search: SearchFn, fetch_page: FetchFn,
-                     parse: ParseFn, persist: PersistFn, now: datetime) -> list[Source]:
+                     parse: ParseFn, persist: PersistFn, now: datetime,
+                     on_failure: FailureFn = _ignore_failure) -> list[Source]:
     queries = build_recap_queries(prev_session) + build_constituent_queries(names, prev_session)
     seen: set[str] = set()
     out: list[Source] = []
@@ -42,7 +48,8 @@ async def build_pool(*, prev_session: date, names: list[str] = (), search: Searc
                 continue  # price/quote page: no disclosure text, never a primary
             try:
                 html = await fetch_page(url)
-            except Exception:
+            except Exception as exc:
+                await on_failure("gather_fetch", url, repr(exc))
                 continue  # one bad page is skipped, not fatal
             raw, quotes = parse(html)
             if not quotes:
@@ -67,10 +74,13 @@ async def gather_live(conn, *, now: datetime, prev_session: date) -> list[Source
 
     from marketwind.scout import discover, fetch
     from marketwind.scout.market import fetch_star50_constituents
-    from marketwind.storage.repo import upsert_source
+    from marketwind.storage.repo import record_fetch_failure, upsert_source
 
     async def _search(query: str) -> list[tuple[str, str]]:
         return await discover.search(query)
+
+    async def _on_failure(stage: str, locus: str, detail: str) -> None:
+        await record_fetch_failure(conn, stage=stage, locus=locus, detail=detail)
 
     def _safe_parse(html: str) -> tuple[str, list[Quote]]:
         try:
@@ -92,6 +102,6 @@ async def gather_live(conn, *, now: datetime, prev_session: date) -> list[Source
         try:
             return await build_pool(prev_session=prev_session, names=names, search=_search,
                                     fetch_page=_fetch, parse=_safe_parse,
-                                    persist=_persist, now=now)
+                                    persist=_persist, now=now, on_failure=_on_failure)
         finally:
             await browser.close()
