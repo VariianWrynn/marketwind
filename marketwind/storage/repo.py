@@ -168,6 +168,14 @@ async def record_verifier_failures(
     )
 
 
+async def record_fetch_failure(conn, *, stage: str, locus: str, detail: str) -> None:
+    """Log one unreachable Scout source (page fetch / cninfo trace / disclosure)."""
+    await conn.execute(
+        "insert into fetch_failures (stage, locus, detail) values ($1, $2, $3);",
+        stage, locus, detail,
+    )
+
+
 async def record_rejected_draft(conn, trace_id: str, output: WriterOutput) -> None:
     """Persist the full rejected draft as JSON, keyed by trace_id."""
     payload = {
