@@ -2,10 +2,17 @@
 #   docker compose -f docker-compose.yml -f deploy/report-node/docker-compose.prod.yml up -d --build
 # Base docker-compose.yml is unchanged (it serves local dev verbatim).
 services:
+  # The base file publishes both on ALL interfaces with guessable credentials and no
+  # Redis auth. Narrow to loopback: inter-service traffic goes over the compose network
+  # by service name, and reaching the box is already an SSH tunnel (README §2).
   postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
 
   redis:
+    ports:
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
 
   app:
@@ -22,6 +29,19 @@ services:
     # too. Point HERMES_BIN at the venv entrypoint in .env. See README "WeChat delivery".
     volumes:
       - ${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:ro
+    # The agent deploying this box is the SAME hermes install the scheduler shells out
+    # to for delivery, and it has host root — so prove the path continuously, not once.
+    # The second predicate is the load-bearing one: <venv>/bin/python is a symlink into
+    # the uv tree mounted above, so an unmounted or moved interpreter dangles it and
+    # `test -x` (which follows symlinks) goes red. That is the ADR-0001 failure mode,
+    # and `test -x "$HERMES_BIN"` alone cannot see it. Prod-only: on a dev box
+    # HERMES_BIN defaults to the bare string `hermes` and this would sit falsely red.
+    healthcheck:
+      test: ["CMD-SHELL", 'test -x "$$HERMES_BIN" && test -x "$$(dirname "$$HERMES_BIN")/python"']
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   backup:
     build:

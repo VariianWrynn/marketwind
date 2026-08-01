@@ -53,3 +53,28 @@ def test_migrate_service_sets_redis_url_even_though_it_never_uses_redis():
         "service_completed_successfully, and blocks app+scheduler from ever starting. "
         "This looks unnecessary. It is not. Do not remove it."
     )
+
+
+def test_prod_binds_postgres_and_redis_to_loopback():
+    services = _load(PROD).get("services", {})
+    for name in ("postgres", "redis"):
+        published = services.get(name, {}).get("ports", []) or []
+        assert published, f"{name} must republish on loopback in the prod override"
+        assert all(str(p).startswith("127.0.0.1:") for p in published), (
+            f"{name} is published on all interfaces by the base file with guessable "
+            f"credentials; the prod override must narrow it to loopback (SSH tunnel "
+            f"is already the documented access pattern)"
+        )
+
+
+def test_scheduler_healthcheck_also_exercises_the_venv_interpreter():
+    sched = _load(PROD).get("services", {}).get("scheduler", {})
+    probe = " ".join(str(p) for p in (sched.get("healthcheck", {}).get("test", []) or []))
+    assert "HERMES_BIN" in probe, (
+        "the scheduler must continuously prove its delivery path; the deploying agent "
+        "is the same hermes install the scheduler invokes, and it has host root"
+    )
+    assert "python" in probe, (
+        "testing HERMES_BIN alone cannot see a dangling uv interpreter - the actual "
+        "ADR-0001 failure mode. Do not simplify this to `test -x $HERMES_BIN`."
+    )
