@@ -32,3 +32,12 @@ def test_postgres_data_lives_on_a_named_volume():
     assert "pgdata" in (compose.get("volumes") or {}), (
         "pgdata must be declared in the top-level volumes: block"
     )
+
+
+def test_app_healthcheck_probes_with_stdlib_python_not_curl():
+    app = _load(BASE).get("services", {}).get("app", {})
+    probe = app.get("healthcheck", {}).get("test", []) or []
+    assert "python" in probe, (
+        "the image is python:3.11-slim, which ships neither curl nor wget — a curl "
+        "probe would mark app unhealthy forever, the exact false signal this guards"
+    )
