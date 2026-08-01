@@ -30,5 +30,12 @@ dist/
 # Local fixtures cache / scratch (keep committed fixtures under tests/)
 *.local
 
-# One-off smoke / scratch scripts (not part of the test suite)
-/scripts/
+# One-off smoke / scratch scripts (not part of the test suite). Scripts that the
+# owner actually reruns are re-included below — git cannot re-include under an
+# excluded *directory*, hence the glob rather than `/scripts/`.
+/scripts/*
+!/scripts/smoke_p1a.py
+!/scripts/push_wechat_live.py
+
+# Agent worktrees — full repo copies; never part of a commit or a lint sweep
+.claude/worktrees/

@@ -37,7 +37,8 @@
       "Bash(.venv/Scripts/pip install *)",
       "Bash(D:/AgentDaily/.venv/Scripts/python.exe -c \"import trafilatura; print\\(trafilatura.__version__\\)\")",
       "Bash(.venv/Scripts/python.exe -m pytest tests/scout/test_clean.py -v)",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/ -v --ignore=tests/scout/test_repo.py)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/scout/ -v --ignore=tests/scout/test_repo.py)",
+      "Bash(python -m pytest -q)"
     ]
   }
 }
