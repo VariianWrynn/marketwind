@@ -61,13 +61,36 @@ hermes gateway setup   # renders a terminal QR over SSH -- scan with your phone
 ```
 Creds persist under the mounted `~/.hermes` and survive restarts.
 
-> **Owner responsibility — daily keepalive (ADR-0002).** The WeChat iLink session goes
-> cold after ~24h with no inbound message and a proactive push then fails (`ret=-2`,
-> mislabeled stale-session; see `CLAUDE.md` §8). Keeping it warm is a **manual owner task**:
-> send a message back to the claw/bot each day so the session stays alive. There is no
-> automated warmer (P2b §8.2 is deliberately unbuilt). Hard expiry (`errcode=-14`) needs a
-> full re-scan via `hermes gateway setup`. The FC dead-man watcher pages you (Bark) if a
-> report silently fails to deliver — but the daily keepalive is what prevents that.
+> **Owner responsibility — re-scan when a send fails `errcode=-14`** (see
+> [ADR-0005](../../docs/adr/0005-ilink-session-expiry-model-corrected.md), which corrects the
+> daily-keepalive instruction ADR-0002 assumed). Two separate things expire here, and only
+> one of them is an owner task:
+>
+> - **Per-peer `context_token` — self-healing, no keepalive needed.** On `errcode=-14` the
+>   adapter clears the stale token and retries the send **tokenless**, which iLink accepts
+>   (`gateway/platforms/weixin.py` `_send_text_chunk`). Cron-initiated pushes therefore
+>   survive a cold session with no recent inbound message. A daily keepalive refreshes only
+>   this token — i.e. the one thing that no longer needs refreshing.
+> - **The QR bot token (`WEIXIN_TOKEN`) — not self-healing.** It is written only by
+>   `hermes gateway setup` on QR confirmation and is never refreshed by inbound traffic.
+>   Once iLink kills it, even a tokenless send returns `errcode=-14 session timeout`, and
+>   the only fix is a re-scan: `hermes gateway setup`.
+>
+> Upstream publishes no session TTL. Observed on this deployment: the token minted
+> 2026-06-05 still authenticated on 2026-06-08 and was dead by 2026-08-05 after ~58 idle
+> days — so the lifetime is **days-to-weeks, not hours**, with the upper bound unmeasured.
+> `hermes send` does **not** need a running Gateway: it resolves `WEIXIN_TOKEN` /
+> `WEIXIN_ACCOUNT_ID` from `~/.hermes/.env` and opens its own iLink session, so upstream
+> issue #14452 (process isolation) does not apply to hermes_agent 0.15.2.
+
+> ⚠ **WeChat is the ONLY delivery route — a dead session means no report that day.**
+> `WECOM_WEBHOOK_URL` is deliberately left unset (ADR-0005 rejected option A), so the fallback
+> slot holds an `UnconfiguredSink`. It reports `ok=False` instead of discarding silently, which
+> makes the failure loud: the run records `FAILED_INFRA` in the ledger, and since the status
+> message cannot be delivered either, the node never checks in and **the FC dead-man pages you
+> over Bark**. You will not get the report, but you will always find out. Recovery is the
+> re-scan above. Setting `WECOM_WEBHOOK_URL` later would let the day's report survive a dead
+> session (gap **G1.5**) — a delivery upgrade, not a fix for the alerting, which works now.
 
 ## 8. Bring up the stack
 ```

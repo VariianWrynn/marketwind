@@ -265,9 +265,11 @@ These are human-only. Stop and report; do not attempt them.
 
 - **Secret values** — API keys, tokens, anything that goes in `.env` as a credential.
 - **The `hermes gateway setup` QR scan** — requires a phone to scan a terminal QR code.
-- **The daily WeChat keepalive** — the iLink session goes cold after roughly 24 hours with
-  no inbound message, and a proactive push then fails. Keeping it warm is a manual owner
-  task (ADR-0002); there is no automated warmer.
+- **Re-scanning after `errcode=-14`** — the iLink **bot token** is minted only by the QR scan
+  and is never refreshed by traffic, so once it expires every send fails `-14 session timeout`
+  and the only fix is `hermes gateway setup` again. **There is no keepalive and no preventive
+  action** (ADR-0005 retired the daily-keepalive instruction ADR-0002 assumed: it refreshes the
+  per-peer `context_token`, which already self-heals, and cannot touch the bot token).
 - **Aliyun console work** — the instance RAM role, creating the OSS bucket, and its 14-day
   `backups/pg/` lifecycle rule.
 - **Flipping `REPORT_DEV_LABEL` to `false`** — that removes the DEV/UNVERIFIED prefix from

@@ -31,6 +31,6 @@
 ## Deferred (recorded, not dropped)
 
 - **Cloud cutover (Stage 4)** — provision a China-reachable node, copy the compose stack, set env, `up`. Mechanical follow-up after the node is purchased.
-- **WeCom backup setup** — turns G1.5's fallback real.
-- **Cold-fail auto-handling (G1.5)** — keepalive-lapse cold push `ret=-2`; must fail loud meanwhile.
+- **WeCom backup setup** — turns G1.5's fallback real. **Rejected for now** ([ADR-0005](../adr/0005-ilink-session-expiry-model-corrected.md) option A); revisit if a missed day proves costly.
+- ~~**Cold-fail auto-handling (G1.5)** — keepalive-lapse cold push `ret=-2`; must fail loud meanwhile.~~ **Dropped 2026-08-05 (ADR-0005):** there is no keepalive to lapse. The `context_token` path self-heals via a tokenless retry, and the real failure is `errcode=-14` bot-token expiry, which only a QR re-scan fixes. The "must fail loud" half is now **implemented** rather than merely intended — the empty fallback slot returns `ok=False`, so the run records `FAILED_INFRA` and the dead-man pages.
 - **Dead-man's switch (G1.3)** — the out-of-process watcher; the residual silent-miss closer.
