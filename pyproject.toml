@@ -31,6 +31,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["live: tests that hit real external services (network, WeChat API)"]
 
 [tool.setuptools.packages.find]
 include = ["marketwind*"]

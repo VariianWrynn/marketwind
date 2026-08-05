@@ -233,7 +233,7 @@ async def test_records_before_sending(monkeypatch):
         ledger[(job_id, trading_date)] = status
         return True
 
-    def recording_send(text, *, primary, fallback, trace_id):
+    def recording_send(text, *, primary, fallback, trace_id, alert=None):
         events.append("send")
 
     monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
@@ -323,7 +323,7 @@ async def test_both_channels_down_does_not_ping(monkeypatch):
     async def stub_run_once(*a, **k):
         return RunOutcome(FAILED_INFRA, "boom")
     _, _, fake_get, fake_record = _make_ledger()
-    def raising_send(text, *, primary, fallback, trace_id):
+    def raising_send(text, *, primary, fallback, trace_id, alert=None):
         raise RuntimeError("both IM channels failed")
     monkeypatch.setattr("marketwind.scheduling.dispatch.run_once", stub_run_once)
     monkeypatch.setattr("marketwind.scheduling.dispatch.get_run_status", fake_get)

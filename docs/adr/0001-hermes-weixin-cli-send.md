@@ -1,10 +1,12 @@
 # ADR-0001 — HermesWeixin sends via the `hermes` CLI, not a raw iLink POST
 
-**Status:** accepted
+**Status:** ~~accepted~~ **OVERTURNED 2026-08-05**
 **Grantor:** project owner
 **Date:** 2026-06-05
 **Scope:** permanent
 **Expiry condition:** revisit if the `hermes` CLI is dropped as a dependency, or if a maintained in-process iLink client (e.g. importing `hermes_agent` directly) becomes preferable for batching/latency.
+
+> **Overturn note (2026-08-05):** The `hermes send` CLI subcommand specified by this ADR **does not exist** (`hermes: error: argument command: invalid choice: 'send'`). `HermesWeixin` has been rewritten to call hermes' `send_weixin_direct` Python API directly — the option-B approach this ADR originally rejected. See `docs/progress/hermes-weixin-api-bark-alert.md` for the full rationale, verification, and implementation details. The expiry condition ("a maintained in-process iLink client becomes preferable") has been met: `send_weixin_direct` is a stable, documented helper in hermes' codebase.
 
 ## Triggering situation
 

@@ -18,9 +18,8 @@ class Settings(BaseSettings):
     report_dev_label: bool = True  # G0.4: prepend DEV/UNVERIFIED prefix; set False in prod
     weixin_account_id: str | None = None
     weixin_token: str | None = None
+    weixin_chat_id: str | None = None
     wecom_webhook_url: str | None = None
-    # Hermes CLI send (P1c, Option C / ADR-0001). Credentials live in ~/.hermes/.env;
-    # this process only needs to know how to invoke the CLI and which target to hit.
     hermes_bin: str = "hermes"
     weixin_target: str = "weixin"
 
@@ -34,6 +33,9 @@ class Settings(BaseSettings):
     main_tolerance_min: int = 90
     freshness_ceiling_cst: str = "10:00"
     main_report_time_cst: str = "07:00"
+
+    # Bark alert: iOS push when primary IM delivery fails. Empty = disabled.
+    bark_url: str = ""
 
     # Dead-man's switch (out-of-process liveness watchdog). Per-job Healthchecks
     # ping URLs; empty ⇒ disabled (no external check-in). Set on the report node

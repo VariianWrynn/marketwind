@@ -1,54 +1,75 @@
-"""HermesWeixin: send via the installed `hermes` CLI (ADR-0001).
+"""HermesWeixin: send via hermes' iLink bot API (send_weixin_direct).
 
-The real WeChat iLink send needs a per-peer context_token session and
-version-pinned headers (see hermes_agent's gateway/platforms/weixin.py);
-reproducing it in-process is brittle. The `hermes` CLI is the tool's public
-surface and reads its own credentials from ~/.hermes/.env, so this is a thin
-subprocess wrapper — no protocol duplication, no credentials in this process.
+ADR-0001 originally specified the ``hermes send`` CLI, but that subcommand
+does not exist.  The verified path is ``send_weixin_direct`` from hermes'
+weixin platform adapter — it handles context-token recovery, aiohttp session
+lifecycle, and message formatting internally.
 
-Contract: `hermes send --to <target> --json -f -` reads the body from stdin and
-prints a JSON result; exit 0 = ok, 1 = delivery error, 2 = usage error.
+Credentials come from config (env vars WEIXIN_TOKEN, WEIXIN_ACCOUNT_ID,
+WEIXIN_CHAT_ID), not from this process's memory.
 """
 from __future__ import annotations
 
-import json
-import subprocess
+import asyncio
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from marketwind.gateway.im.base import SendResult
 
+_HERMES_SITE_PACKAGES = "/opt/hermes-agent/.venv/lib/python3.11/site-packages"
 _TIMEOUT_S = 30
 
 
 class HermesWeixin:
-    def __init__(self, *, hermes_bin: str = "hermes", target: str = "weixin") -> None:
-        self.hermes_bin = hermes_bin
-        self.target = target
+    def __init__(
+        self,
+        *,
+        token: str = "",
+        account_id: str = "",
+        chat_id: str = "",
+        **_legacy: object,
+    ) -> None:
+        self.token = token
+        self.account_id = account_id
+        self.chat_id = chat_id
 
     def send(self, text: str) -> SendResult:
+        if not self._ensure_importable():
+            return SendResult(ok=False, error="hermes weixin module not available")
+        if not self.token:
+            return SendResult(ok=False, error="WEIXIN_TOKEN not configured")
+        if not self.account_id:
+            return SendResult(ok=False, error="WEIXIN_ACCOUNT_ID not configured")
+        if not self.chat_id:
+            return SendResult(ok=False, error="WEIXIN_CHAT_ID not configured")
+
         try:
-            proc = subprocess.run(
-                [self.hermes_bin, "send", "--to", self.target, "--json", "-f", "-"],
-                input=text.encode("utf-8"),
-                capture_output=True,
-                timeout=_TIMEOUT_S,
-            )
-        except FileNotFoundError:
-            return SendResult(ok=False, error=f"hermes binary not found: {self.hermes_bin}")
-        except subprocess.TimeoutExpired:
-            return SendResult(ok=False, error="hermes send timed out")
-        if proc.returncode != 0:
-            try:
-                _out = json.loads(proc.stdout.decode("utf-8", "replace"))
-                _json_err = str(_out.get("error") or "") if isinstance(_out, dict) else ""
-            except json.JSONDecodeError:
-                _json_err = ""
-            _stderr = proc.stderr.decode("utf-8", "replace").strip()
-            err = _json_err or _stderr or f"exit {proc.returncode}"
-            return SendResult(ok=False, error=err)
-        try:
-            result = json.loads(proc.stdout.decode("utf-8", "replace"))
-        except json.JSONDecodeError:
-            return SendResult(ok=True)  # exit 0 but non-JSON output; treat as success
-        if result.get("success") is True:
-            return SendResult(ok=True)
-        return SendResult(ok=False, error=str(result.get("error") or result))
+            from gateway.platforms.weixin import send_weixin_direct
+
+            result = self._run(send_weixin_direct(
+                extra={"account_id": self.account_id},
+                token=self.token,
+                chat_id=self.chat_id,
+                message=text,
+            ))
+        except ImportError as e:
+            return SendResult(ok=False, error=f"import failed: {e}")
+        except Exception as e:
+            return SendResult(ok=False, error=f"send failed: {e}")
+
+        if result.get("error"):
+            return SendResult(ok=False, error=result["error"])
+        return SendResult(ok=True)
+
+    @staticmethod
+    def _ensure_importable() -> bool:
+        if _HERMES_SITE_PACKAGES not in sys.path and os.path.isdir(_HERMES_SITE_PACKAGES):
+            sys.path.insert(0, _HERMES_SITE_PACKAGES)
+        return _HERMES_SITE_PACKAGES in sys.path
+
+    @staticmethod
+    def _run(coro):  # type: ignore[no-untyped-def]
+        """Bridge sync send() to async send_weixin_direct in a worker thread."""
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result(timeout=_TIMEOUT_S)

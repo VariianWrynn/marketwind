@@ -125,6 +125,7 @@ async def dispatch_job(
     backoff_s: float,
     label_prefix: str = DEV_PREFIX,
     healthcheck_url: str = "",
+    alert=None,
 ) -> RunOutcome:
     """Single entry point for cron and boot dispatchers.
 
@@ -179,6 +180,7 @@ async def dispatch_job(
                 fallback=fallback,
                 trace_id=trace_id,
                 label_prefix=label_prefix,
+                alert=alert,
             )
             break  # success — exit the retry loop
         except _TRANSIENT as e:
@@ -214,7 +216,7 @@ async def dispatch_job(
     # status single-sender even under that race.
     text = _status_text(outcome, plan, trace_id)
     if inserted and text is not None:
-        send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
+        send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id, alert=alert)
 
     if inserted:
         check_in(healthcheck_url)
@@ -242,6 +244,7 @@ async def catch_up(
     window: int = 5,
     label_prefix: str = DEV_PREFIX,
     healthcheck_urls: dict[str, str] | None = None,
+    alert=None,
 ) -> list[RunOutcome]:
     """Boot-time backward reconciliation (Task 9 P2b).
 
@@ -285,6 +288,7 @@ async def catch_up(
                     backoff_s=backoff_s,
                     label_prefix=label_prefix,
                     healthcheck_url=(healthcheck_urls or {}).get(job_id, ""),
+                    alert=alert,
                 )
                 outcomes.append(outcome)
             else:
@@ -313,7 +317,7 @@ async def catch_up(
                 # paged for) this missed day — keeps reconciliation single-sender.
                 text = _status_text(outcome, plan, trace_id)
                 if inserted and text is not None:
-                    send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id)
+                    send_with_fallback(text, primary=primary, fallback=fallback, trace_id=trace_id, alert=alert)
                 outcomes.append(outcome)
 
     return outcomes

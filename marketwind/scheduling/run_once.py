@@ -35,7 +35,8 @@ async def run_once(now: datetime, *,
                    trace_id: str,
                    force_calendar: bool = False,
                    force_fresh: bool = False,
-                   label_prefix: str = DEV_PREFIX) -> RunOutcome:
+                   label_prefix: str = DEV_PREFIX,
+                   alert: IMChannel | None = None) -> RunOutcome:
     async with _RUN_LOCK:
         if not force_calendar and not is_trading_session(now.astimezone(CN_TZ).date(), sessions):
             return RunOutcome(SKIPPED_CALENDAR)
@@ -49,4 +50,5 @@ async def run_once(now: datetime, *,
                                   already_published=already_published,
                                   primary=primary, fallback=fallback,
                                   trace_id=trace_id,
-                                  label_prefix=label_prefix)
+                                  label_prefix=label_prefix,
+                                  alert=alert)
