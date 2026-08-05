@@ -4,6 +4,7 @@ from __future__ import annotations
 from marketwind.gateway.im.base import IMChannel
 from marketwind.gateway.im.hermes_weixin import HermesWeixin
 from marketwind.gateway.im.stub import StubSink
+from marketwind.gateway.im.unconfigured import UnconfiguredSink
 from marketwind.gateway.im.wecom_webhook import WecomWebhook
 
 
@@ -13,8 +14,11 @@ def build_channels(settings) -> tuple[IMChannel, IMChannel]:
         return StubSink(), StubSink()
     if settings.im_channel == "hermes_weixin":
         primary = HermesWeixin(hermes_bin=settings.hermes_bin, target=settings.weixin_target)
+        # ADR-0005 B: with no WeCom webhook the fallback slot is empty, and it must
+        # SAY so. A StubSink here returned ok=True while discarding, so a dead WeChat
+        # session still recorded PUBLISHED and still checked the dead-man in.
         fallback = (WecomWebhook(webhook_url=settings.wecom_webhook_url)
-                    if settings.wecom_webhook_url else StubSink())
+                    if settings.wecom_webhook_url else UnconfiguredSink("WECOM_WEBHOOK_URL"))
         return primary, fallback
     if settings.im_channel == "wecom_webhook":
         if not settings.wecom_webhook_url:
