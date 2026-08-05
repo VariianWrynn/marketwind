@@ -10,7 +10,7 @@
 
 **Each stage's pass gates the next. Each fail has an explicit STOP/diagnose action. Never loosen a gate silently** — re-tuning the floor `8/1/2` or flipping the DEV label are explicit owner decisions, recorded. Accepted costs of this runbook: it burns **real DeepSeek tokens** (Stage 2/3) and does a **real WeChat push** to the owner.
 
-**Pre-req:** the dockerized Postgres is up (`docker compose up -d postgres`) and migrations applied (`python -m marketwind.storage.migrate`, idempotent; cf. `deploy/report-node/README.md` step 9); `.env` carries the DeepSeek key, Bocha key, `DATABASE_URL`, and the host hermes is logged in (WeChat QR done, kept warm by the daily clawbot keepalive). Run python as `.venv/Scripts/python.exe` with `PYTHONPATH=.`.
+**Pre-req:** the dockerized Postgres is up (`docker compose up -d postgres`) and migrations applied (`python -m marketwind.storage.migrate`, idempotent; cf. `deploy/report-node/README.md` step 9); `.env` carries the DeepSeek key, Bocha key, `DATABASE_URL`, and the host hermes is logged in (WeChat QR done — and **still valid**: a `-14 session timeout` means the bot token expired and needs `hermes gateway setup` re-scanned; there is no keepalive, per ADR-0005). Run python as `.venv/Scripts/python.exe` with `PYTHONPATH=.`.
 
 ---
 
@@ -93,9 +93,11 @@ docker compose logs -f scheduler
 
 - **PASS:** self-fired push observed ∧ restart recovers ∧ no double-send.
 
-### G1.5 cold-fail caveat (must fail loud)
+### G1.5 single-route caveat (now fails loud — corrected 2026-08-05, ADR-0005)
 
-WeCom is not yet configured, so the hermes/WeChat fallback is `StubSink`. If the owner's daily clawbot keepalive ever lapses, that morning's cold push can fail `ret=-2` (mislabeled stale-session). This is an **accepted, temporary exposure** (ADR-0002 / `docs/GAPS.md` G1.5): it **must fail loud** (a status/page the owner notices), never a silent skip. Not handled this round.
+WeCom stays unconfigured **by decision** (ADR-0005 rejected option A), so WeChat is the only delivery route and a dead session means no report that morning. That exposure is accepted; what is *not* accepted is not noticing. The fallback slot now holds an `UnconfiguredSink` returning `ok=False`, so the run records `FAILED_INFRA` and the node never checks in — the dead-man pages. Previously it was a `StubSink` returning `ok=True` while discarding, which recorded `PUBLISHED` and checked in healthy; the earlier "must fail loud" line described an intent the code did not implement.
+
+The failure to expect is **`errcode=-14 session timeout`** (bot-token expiry ⇒ re-scan), not `ret=-2`. The old `ret=-2` framing came from the P2a Q5 cold/warm A/B, which concerned the self-healing `context_token` path — a distinct failure mode.
 
 ---
 
@@ -108,6 +110,6 @@ This section is retained for history. The `already_published` closure described 
 ## Deferred (out of scope here)
 
 - **Cloud cutover (Stage 4):** provision a China-reachable node, copy the compose stack, set env, `docker compose up`. Mechanical follow-up, written after the node is purchased.
-- **WeCom backup setup** (turns G1.5's fallback real).
-- **Cold-fail auto-handling (G1.5):** refresh-session-then-retry / §8.2 warmer.
+- **WeCom backup setup** (would turn G1.5's fallback real) — **rejected for now** (ADR-0005 A), revisit if a missed day proves costly.
+- ~~**Cold-fail auto-handling (G1.5):** refresh-session-then-retry / §8.2 warmer.~~ **Dropped (ADR-0005 D):** the adapter already retries tokenless on `-14`, and a warmer cannot touch the bot token that actually expires.
 - **Dead-man's switch (G1.3):** the out-of-process watcher closing the residual silent-miss window.
