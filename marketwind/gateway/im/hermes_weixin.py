@@ -5,8 +5,11 @@ does not exist.  The verified path is ``send_weixin_direct`` from hermes'
 weixin platform adapter — it handles context-token recovery, aiohttp session
 lifecycle, and message formatting internally.
 
-Credentials come from config (env vars WEIXIN_TOKEN, WEIXIN_ACCOUNT_ID,
-WEIXIN_CHAT_ID), not from this process's memory.
+Credential resolution: the **live hermes env file** (``/root/.hermes/.env``,
+mounted ro from the host) is the source of truth — hermes rotates tokens, and
+a stale copy in this process's env vars fails SILENTLY (iLink returns
+``success: True`` but never delivers). Constructor args fall back when the
+file is missing (e.g. a dev host without hermes installed).
 """
 from __future__ import annotations
 
@@ -14,11 +17,36 @@ import asyncio
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from marketwind.gateway.im.base import SendResult
 
 _HERMES_SITE_PACKAGES = "/opt/hermes-agent/.venv/lib/python3.11/site-packages"
+_HERMES_ENV_FILE = "/root/.hermes/.env"
 _TIMEOUT_S = 30
+
+
+def _load_hermes_env() -> dict[str, str]:
+    """Parse ``KEY=VALUE`` lines from the live hermes env file.
+
+    Only ``WEIXIN_*`` keys are returned; comments and blank lines are skipped.
+    Returns ``{}`` when the file is missing or unreadable (dev environments).
+    """
+    wanted = {"WEIXIN_TOKEN", "WEIXIN_ACCOUNT_ID", "WEIXIN_HOME_CHANNEL"}
+    out: dict[str, str] = {}
+    try:
+        text = Path(_HERMES_ENV_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if key in wanted:
+            out[key] = value.strip()
+    return out
 
 
 class HermesWeixin:
@@ -30,9 +58,10 @@ class HermesWeixin:
         chat_id: str = "",
         **_legacy: object,
     ) -> None:
-        self.token = token
-        self.account_id = account_id
-        self.chat_id = chat_id
+        hermes_env = _load_hermes_env()
+        self.token = hermes_env.get("WEIXIN_TOKEN") or token
+        self.account_id = hermes_env.get("WEIXIN_ACCOUNT_ID") or account_id
+        self.chat_id = hermes_env.get("WEIXIN_HOME_CHANNEL") or chat_id
 
     def send(self, text: str) -> SendResult:
         if not self._ensure_importable():

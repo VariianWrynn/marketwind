@@ -1,8 +1,9 @@
 """Live integration tests for HermesWeixin — send real messages to WeChat.
 
 Run with: pytest tests/im/test_hermes_weixin_live.py -m live -v
-Requires: WEIXIN_TOKEN, WEIXIN_ACCOUNT_ID, WEIXIN_CHAT_ID in env (or .env).
-Skipped automatically when credentials are missing or hermes module unavailable.
+Resolves credentials from ``/root/.hermes/.env`` (the live source of truth),
+falling back to ``WEIXIN_*`` env vars. Skipped automatically when neither
+provides credentials or the hermes module is unavailable.
 """
 from __future__ import annotations
 
@@ -12,13 +13,16 @@ import uuid
 
 import pytest
 
-from marketwind.gateway.im.hermes_weixin import HermesWeixin, _HERMES_SITE_PACKAGES
+from marketwind.gateway.im.hermes_weixin import (
+    HermesWeixin, _HERMES_SITE_PACKAGES, _load_hermes_env,
+)
 
 pytestmark = pytest.mark.live
 
-_TOKEN = os.getenv("WEIXIN_TOKEN", "")
-_ACCOUNT_ID = os.getenv("WEIXIN_ACCOUNT_ID", "")
-_CHAT_ID = os.getenv("WEIXIN_CHAT_ID", "")
+_hermes = _load_hermes_env()
+_TOKEN = _hermes.get("WEIXIN_TOKEN") or os.getenv("WEIXIN_TOKEN", "")
+_ACCOUNT_ID = _hermes.get("WEIXIN_ACCOUNT_ID") or os.getenv("WEIXIN_ACCOUNT_ID", "")
+_CHAT_ID = _hermes.get("WEIXIN_HOME_CHANNEL") or os.getenv("WEIXIN_CHAT_ID", "")
 
 _has_creds = bool(_TOKEN and _ACCOUNT_ID and _CHAT_ID)
 _has_hermes = os.path.isdir(_HERMES_SITE_PACKAGES)
