@@ -19,7 +19,7 @@ lint-sql:
 	sqlfluff lint migrations
 
 test-gt:
-	@echo "test-gt: not implemented until P2" && exit 1
+	PYTHONPATH=. python tests/citation_ground_truth/runner.py
 
 eval-prompt:
 	@echo "eval-prompt: not implemented until P2" && exit 1
