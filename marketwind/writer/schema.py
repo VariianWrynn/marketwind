@@ -48,10 +48,11 @@ def parse_and_validate(
             raise SchemaViolation(f"claim {cid} cites unknown quote_ids: {unresolved}")
         cat = c.get("category", "quantitative")
         meth = c.get("methodology")
+        tw = c.get("time_window")
         if cat not in _VALID_CATEGORIES:
             raise SchemaViolation(f"unknown claim category: {cat!r}")
         claims.append(DraftClaim(local_id=cid, statement=statement, quote_ids=list(qids),
-                                 category=cat, methodology=meth))
+                                 category=cat, methodology=meth, time_window=tw))
         claim_ids_seen.add(cid)
 
     sentences: list[DraftSentence] = []

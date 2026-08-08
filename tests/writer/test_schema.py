@@ -148,3 +148,24 @@ def test_schema_does_not_reject_derived_without_methodology():
     out = parse_and_validate(_raw("derived_metric"), _QIDS, _SIDS)
     assert out.claims[0].category == "derived_metric"
     assert out.claims[0].methodology is None
+
+
+def test_schema_parses_time_window():
+    raw = json.dumps({
+        "claims": [{"id": "c-001", "statement": "test", "quote_ids": ["q1"],
+                     "category": "quantitative", "time_window": "2026-Q1"}],
+        "sentences": [{"sentence": "test.", "claim_ids": ["c-001"],
+                       "source_ids": ["s1"], "sentence_type": "factual"}],
+    })
+    out = parse_and_validate(raw, {"q1"}, {"s1"})
+    assert out.claims[0].time_window == "2026-Q1"
+
+
+def test_schema_time_window_defaults_to_none():
+    raw = json.dumps({
+        "claims": [{"id": "c-001", "statement": "test", "quote_ids": ["q1"]}],
+        "sentences": [{"sentence": "test.", "claim_ids": ["c-001"],
+                       "source_ids": ["s1"], "sentence_type": "factual"}],
+    })
+    out = parse_and_validate(raw, {"q1"}, {"s1"})
+    assert out.claims[0].time_window is None
