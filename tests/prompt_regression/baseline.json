@@ -1,0 +1,14 @@
+{
+  "description": "Prompt regression baseline — minimum acceptable scores for the frozen pool fixture. A prompt revision scoring below any threshold FAILS.",
+  "fixture": "pool_fixture.json",
+  "min_scores": {
+    "valid_json": 1,
+    "claims_count_min": 1,
+    "no_invalid_category": 1,
+    "no_filler": 1,
+    "no_first_person": 1,
+    "self_contained_subjects": 1,
+    "schema_clean": 1
+  },
+  "note": "Each score is 1 (pass) or 0 (fail). All must be 1 for the prompt to pass regression. baseline version: 2026-08-08."
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "source_id": "s1",
+    "url": "https://finance.sina.com.cn/stock/2026-05-28/doc-star50.shtml",
+    "domain": "finance.sina.com.cn",
+    "is_primary": false,
+    "raw_content": "科创50指数5月27日收涨1.82%，报1023.45点，成交额287.3亿元。成分股中，中芯国际涨5.23%，海光信息涨3.17%，中微公司跌0.89%。",
+    "quotes": [
+      {
+        "quote_id": "q1",
+        "text": "科创50指数5月27日收涨1.82%，报1023.45点，成交额287.3亿元",
+        "is_quantitative": true,
+        "quote_type": "factual",
+        "attached_primary_url": null,
+        "span_start": 0,
+        "span_end": 38
+      },
+      {
+        "quote_id": "q2",
+        "text": "中芯国际涨5.23%",
+        "is_quantitative": true,
+        "quote_type": "factual",
+        "attached_primary_url": null,
+        "span_start": 47,
+        "span_end": 56
+      }
+    ]
+  },
+  {
+    "source_id": "s2",
+    "url": "https://stcn.com/article/detail/star-earnings.html",
+    "domain": "stcn.com",
+    "is_primary": false,
+    "raw_content": "中芯国际2026年一季度实现营业收入176.17亿元，同比增长26.5%；归母净利润13.61亿元，同比增长41.2%。公司表示产能利用率已达95%以上。",
+    "quotes": [
+      {
+        "quote_id": "q3",
+        "text": "中芯国际2026年一季度实现营业收入176.17亿元，同比增长26.5%",
+        "is_quantitative": true,
+        "quote_type": "data",
+        "attached_primary_url": null,
+        "span_start": 0,
+        "span_end": 33
+      },
+      {
+        "quote_id": "q4",
+        "text": "归母净利润13.61亿元，同比增长41.2%",
+        "is_quantitative": true,
+        "quote_type": "data",
+        "attached_primary_url": null,
+        "span_start": 35,
+        "span_end": 55
+      }
+    ]
+  },
+  {
+    "source_id": "s3",
+    "url": "https://www.cninfo.com.cn/disclosure/688981-2026q1",
+    "domain": "cninfo.com.cn",
+    "is_primary": true,
+    "raw_content": "中芯国际集成电路制造有限公司2026年第一季度报告：营业收入176.17亿元，同比增长26.5%；归属于上市公司股东的净利润13.61亿元，同比增长41.2%。",
+    "quotes": [
+      {
+        "quote_id": "q5",
+        "text": "营业收入176.17亿元，同比增长26.5%",
+        "is_quantitative": true,
+        "quote_type": "data",
+        "attached_primary_url": "https://www.cninfo.com.cn/disclosure/688981-2026q1",
+        "span_start": 22,
+        "span_end": 42
+      }
+    ]
+  }
+]
