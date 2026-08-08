@@ -247,8 +247,9 @@ marketwind/
 │   └── im/                #   IM channel adapters
 │       ├── base.py        #     IMChannel protocol + SendResult
 │       ├── factory.py     #     build_channels: config-driven selection
-│       ├── hermes_weixin.py #   HermesWeixin: hermes CLI send (ADR-0001)
+│       ├── hermes_weixin.py #   HermesWeixin: send_weixin_direct Python API (ADR-0001 overturned)
 │       ├── wecom_webhook.py #  WecomWebhook: session-less webhook
+│       ├── bark_alert.py  #     BarkAlert: iOS push on delivery failure
 │       ├── stub.py        #     StubSink: dev/test no-op
 │       └── label.py       #     DEV_PREFIX, apply_label, MAX_TOTAL
 ├── storage/               # Persistence
@@ -316,7 +317,8 @@ Scout ──Gate0──► Writer ──Gate1──► Verifier ──Gate2─�
 
 - `IMChannel` protocol: `send(text) → SendResult(ok, error)`
 - `build_channels(settings) → (primary, fallback)` driven by `im_channel` config
-- ADR-0001: HermesWeixin sends via `hermes` CLI, not raw iLink POST
+- ADR-0001 (overturned 2026-08-05): HermesWeixin calls hermes' `send_weixin_direct` Python API directly
+- BarkAlert: out-of-band iOS push when primary delivery fails (fire-and-forget, never blocks pipeline)
 - ADR-0002: WeChat (hermes) is unattended primary, WeCom-webhook is backup
 - `_send_soft`: try primary, fallback, log-only on ref failure (never blocks PUBLISHED)
 

@@ -2,7 +2,7 @@
 
 > **Read when:** the WeChat send fails silently, `HermesWeixin` returns `ok=False` with an import or credential error, or working on the IM delivery / alert path.
 
-**Status:** complete, 2026-08-05. **Overturns ADR-0001** — the `hermes send` CLI subcommand does not exist; `HermesWeixin` now calls hermes' `send_weixin_direct` Python API directly. Also adds BarkAlert as an out-of-band iOS push when primary delivery fails.
+**Status:** complete, 2026-08-05. **Merged to master 2026-08-08 (PR #22).** Production-verified: consecutive trading-day publications (8/6, 8/7) and correct non-trading-day skip (8/8 Sat). **Milestone G1: end-to-end autonomous delivery pipeline.** **Overturns ADR-0001** — the `hermes send` CLI subcommand does not exist; `HermesWeixin` now calls hermes' `send_weixin_direct` Python API directly. Also adds BarkAlert as an out-of-band iOS push when primary delivery fails.
 
 **Why:** ADR-0001 specified `hermes send --to weixin --json -f -` as the WeChat delivery mechanism. During a debug session on 2026-08-05, this was proven false — `hermes` has no `send` subcommand (`hermes: error: argument command: invalid choice: 'send'`). The previous debug session had attempted a direct rewrite using `send_weixin_direct` but left the implementation brittle (hardcoded paths, credentials read from `os.getenv` inside `send()`, tests still mocking `subprocess.run`). This session rewrote it cleanly, added comprehensive tests, verified end-to-end with a real WeChat send, and added Bark as a failure alert channel.
 
