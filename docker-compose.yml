@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: marketwind
       POSTGRES_DB: marketwind
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -82,12 +82,16 @@ services:
       IM_CHANNEL: hermes_weixin
       HERMES_BIN: ${HERMES_BIN:-hermes}
       WEIXIN_TARGET: ${WEIXIN_TARGET:-weixin}
+      WEIXIN_TOKEN: ${WEIXIN_TOKEN:-}
+      WEIXIN_ACCOUNT_ID: ${WEIXIN_ACCOUNT_ID:-}
+      WEIXIN_CHAT_ID: ${WEIXIN_HOME_CHANNEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       BOCHA_API_KEY: ${BOCHA_API_KEY:-}
       REPORT_DEV_LABEL: ${REPORT_DEV_LABEL:-true}
       HEALTHCHECK_URL_PREMARKET: ${HEALTHCHECK_URL_PREMARKET:-}
       HEALTHCHECK_URL_MAIN: ${HEALTHCHECK_URL_MAIN:-}
+      BARK_URL: ${BARK_URL:-}
     volumes:
       - ${HERMES_HOST_DIR:-./hermes-creds}:/root/.hermes:ro
     depends_on:

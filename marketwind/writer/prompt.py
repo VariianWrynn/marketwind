@@ -85,7 +85,18 @@ Rules:
   该指数/它/其 as a stand-in for a subject named in another claim, because each
   claim is verified in isolation. BAD: "该股当日收盘价涨幅达15%" (reader cannot
   tell which stock). GOOD: "南芯科技(688484)当日收盘价涨幅达15%".
-- 数据类型标注（I12）：每条claim的category默认为"quantitative"；若该数字是来源方对基础数据的二次计算结果（举例：日赚、合计减持额、净利润增速等），则标记为"derived_metric"，同时必须在methodology字段中注明计算依据（如 按净利润计、按区间累计减持股数×均价计），不得省略；若无法确定计算方式，则直接引用基础数据原值，不得推断合计或换算。"""
+- 数据类型标注（I12）：每条claim的category默认为"quantitative"；若该数字是来源方对基础数据的二次计算结果（举例：日赚、合计减持额、净利润增速等），则标记为"derived_metric"，同时必须在methodology字段中注明计算依据（如 按净利润计、按区间累计减持股数×均价计），不得省略；若无法确定计算方式，则直接引用基础数据原值，不得推断合计或换算。
+- **category 白名单（必须严格使用以下值之一，不得自创）**：
+  - `quantitative` — 直接引用来源的原始数字（默认值）
+  - `temporal` — 时间相关的事实（如交易日期、发布时间）
+  - `comparative` — 比较性陈述（如涨幅、跌幅、排名）
+  - `attribution` — 归因陈述（如"据XX报道"）
+  - `causal` — 因果关系（如"因XX导致YY"）
+  - `quoted_inference` — 来源本身作出的推断（必须保留归因）
+  - `freshness` — 时效性声明（如"今日"、"昨日"）
+  - `derived_metric` — 来源对基础数据的二次计算（必须在methodology中注明计算依据）
+  - `correction` — 更正声明
+  - **禁止使用**：`qualitative`、空字符串、或任何不在上述列表中的值。若不确定，使用 `quantitative`。"""
 
 
 def alias_pool(

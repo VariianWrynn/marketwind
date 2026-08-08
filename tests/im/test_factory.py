@@ -12,6 +12,7 @@ class _S:
         self.im_channel = kw.get("im_channel", "stub")
         self.weixin_account_id = kw.get("weixin_account_id")
         self.weixin_token = kw.get("weixin_token")
+        self.weixin_chat_id = kw.get("weixin_chat_id")
         self.wecom_webhook_url = kw.get("wecom_webhook_url")
         self.hermes_bin = kw.get("hermes_bin", "hermes")
         self.weixin_target = kw.get("weixin_target", "weixin")

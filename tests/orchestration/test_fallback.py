@@ -23,3 +23,23 @@ def test_both_fail_raises_with_trace_id():
     primary, fallback = StubSink(fail=True), StubSink(fail=True)
     with pytest.raises(RuntimeError, match="t1"):
         send_with_fallback("hi", primary=primary, fallback=fallback, trace_id="t1")
+
+
+def test_alert_fires_when_primary_fails():
+    primary, fallback, alert = StubSink(fail=True), StubSink(), StubSink()
+    send_with_fallback("hi", primary=primary, fallback=fallback, trace_id="t1", alert=alert)
+    assert len(alert.sent) == 1
+    assert "failed" in alert.sent[0].lower()
+
+
+def test_alert_not_fired_when_primary_succeeds():
+    primary, fallback, alert = StubSink(), StubSink(), StubSink()
+    send_with_fallback("hi", primary=primary, fallback=fallback, trace_id="t1", alert=alert)
+    assert alert.sent == []
+
+
+def test_no_alert_is_safe():
+    """alert=None (default) must not crash."""
+    primary, fallback = StubSink(fail=True), StubSink()
+    send_with_fallback("hi", primary=primary, fallback=fallback, trace_id="t1")
+    assert fallback.sent == ["hi"]

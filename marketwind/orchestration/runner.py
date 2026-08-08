@@ -28,11 +28,14 @@ def _send_soft(text: str, *, primary: IMChannel, fallback: IMChannel) -> SendRes
 
 
 def send_with_fallback(text: str, *, primary: IMChannel, fallback: IMChannel,
-                       trace_id: str) -> None:
+                       trace_id: str,
+                       alert: IMChannel | None = None) -> None:
     """Try primary; on failure try fallback; if both fail raise with trace_id."""
     res: SendResult = primary.send(text)
     if res.ok:
         return
+    if alert is not None:
+        alert.send(f"MarketWind primary failed: {res.error}")
     res = fallback.send(text)
     if res.ok:
         return
@@ -50,6 +53,7 @@ async def run_pipeline(
     fallback: IMChannel,
     trace_id: str,
     label_prefix: str = DEV_PREFIX,
+    alert: IMChannel | None = None,
 ) -> RunOutcome:
     """Grounded-floor gate -> draft -> verifier gate -> check-before-send -> commit -> label -> push.
 
@@ -87,7 +91,7 @@ async def run_pipeline(
     # 5. Commit then publish (Law-5 ordering: persist before push)
     await bundle.commit()
     labeled = apply_label(bundle.body, prefix=label_prefix)
-    send_with_fallback(labeled, primary=primary, fallback=fallback, trace_id=trace_id)
+    send_with_fallback(labeled, primary=primary, fallback=fallback, trace_id=trace_id, alert=alert)
     if bundle.reference:
         ref = _send_soft(bundle.reference, primary=primary, fallback=fallback)
         if not ref.ok:

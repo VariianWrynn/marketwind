@@ -29,6 +29,7 @@ services:
     # too. Point HERMES_BIN at the venv entrypoint in .env. See README "WeChat delivery".
     volumes:
       - ${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:${HERMES_UV_PYTHON_DIR:-/root/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu}:ro
+      - /opt/hermes-agent/.venv:/opt/hermes-agent/.venv:ro
     # The agent deploying this box is the SAME hermes install the scheduler shells out
     # to for delivery, and it has host root — so prove the path continuously, not once.
     # The second predicate is the load-bearing one: <venv>/bin/python is a symlink into

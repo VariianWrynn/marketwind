@@ -99,7 +99,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
     import asyncpg
 
     from marketwind.config import settings
-    from marketwind.gateway.im.factory import build_channels
+    from marketwind.gateway.im.factory import build_channels, build_alert
     from marketwind.gateway.im.stub import StubSink
     from marketwind.scheduling.anchor import anchor_utc
     from marketwind.scheduling.run_once import run_once
@@ -120,6 +120,7 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
         primary, fallback = build_channels(live)
     else:
         primary, fallback = StubSink(), StubSink()
+    alert = build_alert(settings)
 
     conn = await asyncpg.connect(settings.database_url)
     try:
@@ -167,7 +168,8 @@ async def main(argv: list[str] | None = None) -> None:  # pragma: no cover - liv
                        trace_id=f"manual-{now:%Y%m%dT%H%M%S}",
                        force_calendar=args.force_calendar,
                        force_fresh=args.force_fresh,
-                       label_prefix=label_prefix)
+                       label_prefix=label_prefix,
+                       alert=alert)
         print(outcome_line(outcome))
     finally:
         await conn.close()
@@ -180,7 +182,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     import asyncpg
 
     from marketwind.config import settings
-    from marketwind.gateway.im.factory import build_channels
+    from marketwind.gateway.im.factory import build_channels, build_alert
     from marketwind.scheduling.dispatch import catch_up, dispatch_job
     from marketwind.scheduling.scheduler import assert_timing_safe, build_scheduler
     from marketwind.scout.calendar import live_prev_trading_session, _load_sessions
@@ -196,6 +198,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
     # ADR-0002: WeChat (hermes) is the unattended PRIMARY; WeCom-webhook is the backup.
     live = settings.model_copy(update={"im_channel": "hermes_weixin"})
     primary, fallback = build_channels(live)
+    alert = build_alert(settings)
 
     conn = await asyncpg.connect(settings.database_url)
     try:
@@ -254,6 +257,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
             window=5,
             label_prefix=label_prefix,
             healthcheck_urls=healthcheck_urls,
+            alert=alert,
         )
 
         async def _dispatch(job_id: str) -> None:
@@ -276,6 +280,7 @@ async def run_scheduler() -> None:  # pragma: no cover - live
                 backoff_s=settings.backoff_ceiling_s,
                 label_prefix=label_prefix,
                 healthcheck_url=healthcheck_urls.get(job_id, ""),
+                alert=alert,
             )
 
         sched = build_scheduler(dispatch=_dispatch, misfire_grace_s=settings.misfire_grace_s)
