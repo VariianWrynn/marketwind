@@ -58,7 +58,7 @@ def _make_clean_pool() -> tuple[WriterOutput, list[PooledSource]]:
         quote_ids=["q-001"],
     )
     sentence = DraftSentence(
-        sentence="公司营收同比增长20%。",
+        sentence="据公司公告，营收同比增长20%。",
         claim_ids=["c-001"],
         source_ids=["s-001"],
         sentence_type="factual",

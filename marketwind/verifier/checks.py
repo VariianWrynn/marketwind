@@ -6,7 +6,7 @@ import re
 
 from marketwind.scout.source_tier import clears_law3
 from marketwind.verifier.domain import Violation
-from marketwind.writer.domain import PooledQuote, PooledSource, WriterOutput
+from marketwind.writer.domain import DraftSentence, PooledQuote, PooledSource, WriterOutput
 
 # ---------------------------------------------------------------------------
 # Spec-critical literals — verbatim from spec, do not edit tokens
@@ -14,6 +14,7 @@ from marketwind.writer.domain import PooledQuote, PooledSource, WriterOutput
 
 _FILLER = re.compile(r"据报道|业内人士|市场认为|普遍预期|通常来说|分析人士|知情人士|接近.{0,8}的人士|有消息称")
 _FIRST_PERSON = re.compile(r"系统认为|分析显示|综合判断|经测算|研究表明")
+_ATTRIBUTION_PREFIX = re.compile(r"据.{0,20}(?:报道|消息|披露|指出|研报|分析|公告)|根据.{0,20}(?:报道|消息|数据|统计|公告)")
 
 
 # ---------------------------------------------------------------------------
@@ -172,4 +173,50 @@ def check_derived_methodology(
                         "but has no methodology label"
                     ),
                 ))
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# Check 6 — I3b/I2: quantitative claims need ≥2 independent sources or
+# attributed_single (sentence carries attribution prefix).
+# ---------------------------------------------------------------------------
+
+def check_corroboration(
+    output: WriterOutput,
+    pool_index: dict[str, tuple[PooledQuote, PooledSource]],
+) -> list[Violation]:
+    """Quantitative claims with <2 independent source domains must have
+    attribution in their referencing sentence (I3b: attributed_single)."""
+    claim_to_sentences: dict[str, list[DraftSentence]] = {}
+    for sent in output.sentences:
+        for cid in sent.claim_ids:
+            claim_to_sentences.setdefault(cid, []).append(sent)
+
+    violations: list[Violation] = []
+    for claim in output.claims:
+        has_quant = False
+        domains: set[str] = set()
+        for qid in claim.quote_ids:
+            if qid not in pool_index:
+                continue
+            quote, source = pool_index[qid]
+            if quote.is_quantitative:
+                has_quant = True
+            domains.add(source.domain)
+        if not has_quant or len(domains) >= 2:
+            continue
+        referencing = claim_to_sentences.get(claim.local_id, [])
+        has_attribution = any(
+            _ATTRIBUTION_PREFIX.search(s.sentence) for s in referencing
+        )
+        if not has_attribution:
+            violations.append(Violation(
+                check="I3b",
+                locus=claim.local_id,
+                detail=(
+                    f"claim {claim.local_id!r} has {len(domains)} independent "
+                    f"source(s) ({', '.join(sorted(domains))}) "
+                    "but no attribution prefix in referencing sentence(s)"
+                ),
+            ))
     return violations
