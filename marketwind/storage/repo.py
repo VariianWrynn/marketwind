@@ -108,10 +108,11 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 continue  # drop claims whose sentence was tail-dropped (no orphans)
             cid = await conn.fetchval(
                 """
-                insert into claims (statement, quote_ids, category, methodology)
-                values ($1, $2::uuid[], $3, $4) returning claim_id;
+                insert into claims (statement, quote_ids, category, methodology, time_window)
+                values ($1, $2::uuid[], $3, $4, $5) returning claim_id;
                 """,
                 c.statement, c.quote_ids, c.category, c.methodology,
+                getattr(c, "time_window", None),
             )
             local_to_uuid[c.local_id] = cid
         for s in rendered_sentences:
@@ -129,6 +130,40 @@ async def persist_report(conn, claims, rendered_sentences) -> str:
                 s.position,
             )
     return str(report_id)
+
+
+async def persist_pipeline_run(
+    conn, *, report_id: str, trading_date: date, job_id: str, claim_ids: list[str]
+) -> None:
+    """Record a pipeline run with its verified-claim set for I11 cross-report comparison."""
+    await conn.execute(
+        """
+        insert into pipeline_runs (report_id, trading_date, job_id, claim_ids)
+        values ($1::uuid, $2, $3, $4::uuid[]);
+        """,
+        report_id, trading_date, job_id, claim_ids,
+    )
+
+
+async def load_recent_claims(
+    conn, *, trading_date: date, days_back: int = 5
+) -> list[dict]:
+    """Load claims from recent pipeline runs for I11 cross-report consistency.
+
+    Returns list of dicts with keys: statement, time_window, category.
+    """
+    rows = await conn.fetch(
+        """
+        select c.statement, c.time_window, c.category
+        from pipeline_runs pr
+        join claims c on c.claim_id = any(pr.claim_ids)
+        where pr.trading_date < $1
+          and pr.trading_date >= $1 - $2::int
+        order by pr.trading_date desc;
+        """,
+        trading_date, days_back,
+    )
+    return [dict(r) for r in rows]
 
 
 async def record_run(

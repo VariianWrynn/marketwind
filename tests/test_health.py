@@ -7,10 +7,12 @@ APP_BASE_URL (default http://localhost:8000).
 import os
 
 import httpx
+import pytest
 
 BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8000")
 
 
+@pytest.mark.live
 def test_health_reports_both_dependencies_up():
     resp = httpx.get(f"{BASE_URL}/health", timeout=10)
     assert resp.status_code == 200

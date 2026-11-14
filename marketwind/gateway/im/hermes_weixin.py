@@ -64,14 +64,14 @@ class HermesWeixin:
         self.chat_id = hermes_env.get("WEIXIN_HOME_CHANNEL") or chat_id
 
     def send(self, text: str) -> SendResult:
-        if not self._ensure_importable():
-            return SendResult(ok=False, error="hermes weixin module not available")
         if not self.token:
             return SendResult(ok=False, error="WEIXIN_TOKEN not configured")
         if not self.account_id:
             return SendResult(ok=False, error="WEIXIN_ACCOUNT_ID not configured")
         if not self.chat_id:
             return SendResult(ok=False, error="WEIXIN_CHAT_ID not configured")
+        if not self._ensure_importable():
+            return SendResult(ok=False, error="hermes weixin module not available")
 
         try:
             from gateway.platforms.weixin import send_weixin_direct

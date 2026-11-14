@@ -89,7 +89,7 @@ def _writer_output() -> WriterOutput:
     return WriterOutput(
         claims=[DraftClaim(local_id="c1", statement=_CLEAN_TEXT, quote_ids=["qq"])],
         sentences=[DraftSentence(
-            sentence="科创50昨日收涨。",
+            sentence="据公告，科创50昨日收涨。",
             claim_ids=["c1"],
             source_ids=["s1"],
             sentence_type="factual",
@@ -157,7 +157,7 @@ async def _run(now, *, gather, draft, primary, fallback, force=False,
     if judge is None:
         judge = _fake_judge
     if record_fail is None:
-        async def record_fail(trace_id, violations):
+        async def record_fail(trace_id, violations, output=None):
             pass
     if already_published is None:
         already_published = _never

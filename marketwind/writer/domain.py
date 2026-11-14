@@ -38,6 +38,7 @@ class DraftClaim:
     quote_ids: list[str]   # references PooledQuote.quote_id (real uuids); >= 1
     category: str = "quantitative"   # one of schema._VALID_CATEGORIES (e.g. derived_metric)
     methodology: str | None = None   # required when category == "derived_metric" (I12)
+    time_window: str | None = None   # temporal scope for I10 (e.g. "2026-Q1", "2026-05-27")
 
 
 @dataclass(frozen=True)

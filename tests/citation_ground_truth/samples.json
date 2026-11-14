@@ -1,0 +1,316 @@
+[
+  {
+    "id": "GT-R1",
+    "description": "Pseudo-dual-source: two URLs same domain — corroboration=1 (I3b/I2 pending)",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://finance.sina.com.cn/doc/aaa",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "大基金三期70%投设备材料",
+        "quotes": [{"quote_id": "q1", "text": "大基金三期70%投设备材料", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://finance.sina.com.cn/doc/bbb",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "大基金三期70%投设备材料",
+        "quotes": [{"quote_id": "q2", "text": "大基金三期70%投设备材料", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "大基金三期70%资金投向设备材料领域", "quote_ids": ["q1", "q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "大基金三期70%资金投向设备材料领域。", "claim_ids": ["c-001"], "source_ids": ["s1", "s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "Both sources from finance.sina.com.cn (TRUSTED tier) clear I3. I3b/I2 corroboration enforcement not yet implemented — same-domain reprints should count as 1 source. After G2.2 I3b, this should fire."
+  },
+  {
+    "id": "GT-R2",
+    "description": "Derived metric without methodology (日赚3.6亿 denominator mismatch) — I12 catches",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://finance.sina.com.cn/doc/ccc",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "日赚3.6亿元",
+        "quotes": [
+          {"quote_id": "q1", "text": "日赚3.6亿元", "is_quantitative": true, "quote_type": "data", "attached_primary_url": null}
+        ]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "长鑫存储日赚3.6亿元", "quote_ids": ["q1"], "category": "derived_metric", "methodology": null}
+    ],
+    "sentences": [
+      {"sentence": "长鑫存储日赚3.6亿元。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": ["I12"],
+    "expected_pass": false
+  },
+  {
+    "id": "GT-R3",
+    "description": "Cross-day self-correction (yesterday wrote 5/27, today confirms 5/26) — I11 pending",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://cls.cn/detail/ddd",
+        "domain": "cls.cn", "is_primary": false,
+        "raw_content": "美光万亿市值于5月26日达成",
+        "quotes": [{"quote_id": "q1", "text": "美光万亿市值于5月26日达成", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "美光科技市值于5月26日突破万亿美元", "quote_ids": ["q1"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "美光科技市值于5月26日突破万亿美元。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "I11 cross-report consistency not yet implemented. After G2.2 I11, comparing against a prior report would produce a correction claim."
+  },
+  {
+    "id": "GT-R4",
+    "description": "Time-window false contradiction (overnight vs different-day Philly SOX) — must NOT fire",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://finance.sina.com.cn/doc/eee1",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "隔夜半导体板块领跌",
+        "quotes": [{"quote_id": "q1", "text": "隔夜半导体板块领跌", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://finance.sina.com.cn/doc/eee2",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "周二费城半导体指数大涨6%",
+        "quotes": [{"quote_id": "q2", "text": "周二费城半导体指数大涨6%", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "隔夜半导体板块领跌", "quote_ids": ["q1"], "category": "quantitative"},
+      {"local_id": "c-002", "statement": "周二费城半导体指数大涨6%", "quote_ids": ["q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "隔夜半导体板块领跌。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"},
+      {"sentence": "周二费城半导体指数大涨6%。", "claim_ids": ["c-002"], "source_ids": ["s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "Different time windows — no contradiction. Stub judge returns no violations. I10 correctly produces no false positive."
+  },
+  {
+    "id": "GT-R5",
+    "description": "Real dual-source core event, all media (no primary) — passes verifier (Gate 0 is separate)",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://stcn.com/article/fff1",
+        "domain": "stcn.com", "is_primary": false,
+        "raw_content": "长鑫存储IPO过会",
+        "quotes": [{"quote_id": "q1", "text": "长鑫存储IPO过会", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://yicai.com/news/fff2",
+        "domain": "yicai.com", "is_primary": false,
+        "raw_content": "长鑫存储首次公开发行获上市委会议通过",
+        "quotes": [{"quote_id": "q2", "text": "长鑫存储首次公开发行获上市委会议通过", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "长鑫存储IPO获上市委会议通过", "quote_ids": ["q1", "q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "长鑫存储IPO获上市委会议通过。", "claim_ids": ["c-001"], "source_ids": ["s1", "s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "No quantitative quotes → I3 does not fire. Gate 0 (primary≥1) is a pipeline-level gate, not a verifier check. Verifier correctly passes."
+  },
+  {
+    "id": "GT-R6",
+    "description": "Single-source derived aggregation — I12 catches missing methodology",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://finance.sina.com.cn/doc/ggg",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "合计145亿元",
+        "quotes": [
+          {"quote_id": "q1", "text": "合计145亿元", "is_quantitative": true, "quote_type": "data", "attached_primary_url": null}
+        ]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "半导体板块减持合计145亿元", "quote_ids": ["q1"], "category": "derived_metric", "methodology": null}
+    ],
+    "sentences": [
+      {"sentence": "半导体板块减持合计145亿元。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": ["I12"],
+    "expected_pass": false,
+    "note": "finance.sina.com.cn is TRUSTED → clears I3. derived_metric without methodology → I12 fires."
+  },
+  {
+    "id": "GT-R7",
+    "description": "Unattributed market sentiment — RF-4 catches filler phrase",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://finance.sina.com.cn/doc/hhh",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "市场认为资金虹吸效应值得关注",
+        "quotes": [{"quote_id": "q1", "text": "市场认为资金虹吸效应值得关注", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "市场认为资金虹吸效应值得关注", "quote_ids": ["q1"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "市场认为资金虹吸效应值得关注。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": ["RF-4"],
+    "expected_pass": false
+  },
+  {
+    "id": "GT-S1",
+    "description": "Pure digit misattribution (swapped numbers) — I3 catches EXCLUDED-tier source",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://ithome.com/article/iii1",
+        "domain": "ithome.com", "is_primary": false,
+        "raw_content": "营收176.17亿元",
+        "quotes": [{"quote_id": "q1", "text": "营收176.17亿元", "is_quantitative": true, "quote_type": "data", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://stcn.com/article/iii2",
+        "domain": "stcn.com", "is_primary": false,
+        "raw_content": "营收40.34亿元",
+        "quotes": [{"quote_id": "q2", "text": "营收40.34亿元", "is_quantitative": true, "quote_type": "data", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "海光信息Q1营收176.17亿元", "quote_ids": ["q1"], "category": "quantitative"},
+      {"local_id": "c-002", "statement": "中芯国际Q1营收40.34亿元", "quote_ids": ["q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "海光信息Q1营收176.17亿元。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"},
+      {"sentence": "中芯国际Q1营收40.34亿元。", "claim_ids": ["c-002"], "source_ids": ["s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": ["I3"],
+    "expected_pass": false,
+    "note": "ithome.com is EXCLUDED tier → I3 fires for c-001. stcn.com is DESIGNATED ≥ TRUSTED → c-002 clears I3. Semantic misattribution (swapped numbers) requires judge layer."
+  },
+  {
+    "id": "GT-S2",
+    "description": "Pure period mislabel (Q1→Q2) — rule layer passes, judge-dependent",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://cls.cn/detail/jjj",
+        "domain": "cls.cn", "is_primary": false,
+        "raw_content": "第二季度营收同比增长20%",
+        "quotes": [{"quote_id": "q1", "text": "第二季度营收同比增长20%", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "中芯国际第二季度营收同比增长20%", "quote_ids": ["q1"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "中芯国际第二季度营收同比增长20%。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "cls.cn is TRUSTED → clears I3. Period mislabel (Q1→Q2) is invisible to rule layer. Judge-dependent — offline runner cannot verify."
+  },
+  {
+    "id": "GT-S3a",
+    "description": "Quoted inference (legitimate, source's own conclusion with attribution)",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://stcn.com/article/kkk",
+        "domain": "stcn.com", "is_primary": false,
+        "raw_content": "硅片涨价逻辑有望2026Q2出现，看好中国硅片",
+        "quotes": [{"quote_id": "q1", "text": "硅片涨价逻辑有望2026Q2出现，看好中国硅片", "is_quantitative": false, "quote_type": "quoted_inference", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "据中信证券研报，硅片涨价逻辑有望2026Q2出现", "quote_ids": ["q1"], "category": "quoted_inference"}
+    ],
+    "sentences": [
+      {"sentence": "据中信证券研报，硅片涨价逻辑有望2026Q2出现。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true
+  },
+  {
+    "id": "GT-S3b",
+    "description": "Model-stitched inference (two independent facts → novel conclusion) — I1 judge-dependent",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://stcn.com/article/lll1",
+        "domain": "stcn.com", "is_primary": false,
+        "raw_content": "长鑫存储IPO过会",
+        "quotes": [{"quote_id": "q1", "text": "长鑫存储IPO过会", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://finance.sina.com.cn/doc/lll2",
+        "domain": "finance.sina.com.cn", "is_primary": false,
+        "raw_content": "大基金三期3440亿元",
+        "quotes": [{"quote_id": "q2", "text": "大基金三期3440亿元", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "国产半导体设备国产替代正在加速", "quote_ids": ["q1", "q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "国产半导体设备国产替代正在加速。", "claim_ids": ["c-001"], "source_ids": ["s1", "s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "Law-4 violation (model inference) should be caught by I1 judge. Stub judge returns no violations. Judge-dependent — offline runner cannot verify."
+  },
+  {
+    "id": "GT-S4",
+    "description": "Stale fact (old 7.90% reported as current, actual now 7.00%) — I6 pending",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://cls.cn/detail/mmm1",
+        "domain": "cls.cn", "is_primary": false,
+        "raw_content": "合计持有兆易创新7.90%股份",
+        "quotes": [{"quote_id": "q1", "text": "合计持有兆易创新7.90%股份", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "朱一明目前合计持有兆易创新7.90%股份", "quote_ids": ["q1"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "朱一明目前合计持有兆易创新7.90%股份。", "claim_ids": ["c-001"], "source_ids": ["s1"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "cls.cn is TRUSTED → clears I3. I6 90-day freshness search not yet implemented. After G2.2 I6, the word '目前' with stale data should fire."
+  },
+  {
+    "id": "GT-S5",
+    "description": "Single-sentence multi-source synthesis (Law-2 dual) — I1 judge-dependent",
+    "pool": [
+      {
+        "source_id": "s1", "url": "https://stcn.com/article/nnn1",
+        "domain": "stcn.com", "is_primary": false,
+        "raw_content": "长鑫存储IPO获上市委会议通过",
+        "quotes": [{"quote_id": "q1", "text": "长鑫存储IPO获上市委会议通过", "is_quantitative": false, "quote_type": "factual", "attached_primary_url": null}]
+      },
+      {
+        "source_id": "s2", "url": "https://cls.cn/detail/nnn2",
+        "domain": "cls.cn", "is_primary": false,
+        "raw_content": "美光科技市值突破万亿美元",
+        "quotes": [{"quote_id": "q2", "text": "美光科技市值突破万亿美元", "is_quantitative": true, "quote_type": "factual", "attached_primary_url": null}]
+      }
+    ],
+    "claims": [
+      {"local_id": "c-001", "statement": "同期长鑫存储过会且美光市值破万亿", "quote_ids": ["q1", "q2"], "category": "quantitative"}
+    ],
+    "sentences": [
+      {"sentence": "同期长鑫存储过会且美光市值破万亿。", "claim_ids": ["c-001"], "source_ids": ["s1", "s2"], "sentence_type": "factual"}
+    ],
+    "expected_checks": [],
+    "expected_pass": true,
+    "note": "I1 synthesis violation should be caught by judge. Stub judge returns no violations. Judge-dependent — offline runner cannot verify."
+  }
+]

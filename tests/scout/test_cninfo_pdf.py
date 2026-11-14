@@ -179,3 +179,81 @@ async def test_integration_pdf_wrong_number_does_not_attach():
         constituents=_CONS, on_date=date(2024, 2, 29),
     )
     assert out[0].quotes[0].attached_primary_url is None
+
+
+# ---------------------------------------------------------------------------
+# G2.4 — Mojibake / image-only PDFs: fail-closed, no OCR (Iron Law 3)
+# ---------------------------------------------------------------------------
+
+def _build_image_only_pdf() -> bytes:
+    """A minimal PDF with no text layer (image-only scan)."""
+    objs = [
+        b"<</Type/Catalog/Pages 2 0 R>>",
+        b"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+        b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R>>",
+    ]
+    stream = b"% blank content stream - no text operators\n"
+    objs.append(b"<</Length " + str(len(stream)).encode() + b">>stream\n"
+                + stream + b"endstream")
+    out = b"%PDF-1.4\n"
+    offsets = []
+    for i, body in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += str(i).encode() + b" 0 obj" + body + b"endobj\n"
+    xref_pos = len(out)
+    out += b"xref\n0 " + str(len(objs) + 1).encode() + b"\n"
+    out += b"0000000000 65535 f \n"
+    for off in offsets:
+        out += ("%010d 00000 n \n" % off).encode()
+    out += b"trailer<</Root 1 0 R/Size " + str(len(objs) + 1).encode() + b">>\n"
+    out += b"startxref\n" + str(xref_pos).encode() + b"\n%%EOF"
+    return out
+
+
+def test_extract_pdf_text_image_only_returns_empty():
+    """Image-only PDF (no text layer) extracts to empty string — fail closed."""
+    pdf = _build_image_only_pdf()
+    assert extract_pdf_text(pdf) == ""
+
+
+async def test_integration_image_only_pdf_does_not_attach():
+    """Image-only PDF → empty extract → no number match → no-attach (G2.4)."""
+    pdf = _build_image_only_pdf()
+    client = _FakeClient(_FakeResp(200, pdf))
+
+    async def trace(claim_type, symbol, on_date):
+        return [_DETAIL_OK]
+
+    async def fetch(url):
+        return await fetch_cninfo_disclosure(client, url)
+
+    out = await enrich_primary(
+        [_source([_quote("中芯国际净利润率同比12.34%")])],
+        classify=_classify_none, trace=trace, fetch=fetch,
+        constituents=_CONS, on_date=date(2024, 2, 29),
+    )
+    assert out[0].quotes[0].attached_primary_url is None
+
+
+async def test_integration_garbled_extract_does_not_attach():
+    """Garbled text (mojibake) → no number match → no-attach (G2.4).
+
+    A PDF with a broken CJK font mapping may produce garbage like
+    '\x00\x01\x02' or random unicode. Since no digits in the garbled
+    text match the quoted figure, enrich_primary declines to attach.
+    """
+    garbled_pdf = _build_minimal_pdf("x" * 50)
+    client = _FakeClient(_FakeResp(200, garbled_pdf))
+
+    async def trace(claim_type, symbol, on_date):
+        return [_DETAIL_OK]
+
+    async def fetch(url):
+        return await fetch_cninfo_disclosure(client, url)
+
+    out = await enrich_primary(
+        [_source([_quote("中芯国际净利润率同比12.34%")])],
+        classify=_classify_none, trace=trace, fetch=fetch,
+        constituents=_CONS, on_date=date(2024, 2, 29),
+    )
+    assert out[0].quotes[0].attached_primary_url is None

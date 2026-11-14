@@ -86,7 +86,7 @@ def _writer_output() -> WriterOutput:
     return WriterOutput(
         claims=[DraftClaim(local_id="c1", statement=_CLEAN_TEXT, quote_ids=["qq"])],
         sentences=[DraftSentence(
-            sentence="科创50昨日收涨。",
+            sentence="据公告，科创50昨日收涨。",
             claim_ids=["c1"],
             source_ids=["s1"],
             sentence_type="factual",
